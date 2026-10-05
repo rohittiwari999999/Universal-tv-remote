@@ -1,0 +1,123 @@
+# GitHub Actions CI/CD Workflow for Flutter Universal TV Remote Control
+# Location in repository: .github/workflows/build_flutter_apk_aab.yml
+
+name: Build & Release Flutter TV Remote (APK & AAB)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (all, aab, apk)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - aab
+          - apk
+
+jobs:
+  build:
+    name: Build Flutter APK & AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 🚀 Set up Flutter (3.24.x Stable)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+          cache: true
+
+      - name: 🔍 Doctor & Environment Check
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          flutter pub get
+
+      - name: 🔑 Configure Android Keystore Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          mkdir -p android/app
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
+            echo "✅ Keystore configured from GitHub Secrets."
+          else
+            echo "⚠️ Generating temporary signing keystore for CI..."
+            keytool -genkey -v \
+              -keystore android/app/upload-keystore.jks \
+              -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias upload -storepass ci_password123 -keypass ci_password123 \
+              -dname "CN=CI Runner, O=UniversalRemote, C=IN"
+            echo "storePassword=ci_password123" > android/key.properties
+            echo "keyPassword=ci_password123" >> android/key.properties
+            echo "keyAlias=upload" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
+          fi
+
+      - name: 📦 Build Release Android App Bundle (AAB)
+        if: ${{ github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'aab' || github.event.inputs.build_type == '' }}
+        run: |
+          flutter build appbundle --release --obfuscate --split-debug-info=build/app/outputs/symbols
+
+      - name: 📱 Build Release APK (Universal & Splits)
+        if: ${{ github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'apk' || github.event.inputs.build_type == '' }}
+        run: |
+          flutter build apk --release --split-per-abi
+          flutter build apk --release
+
+      - name: 📤 Upload Google Play App Bundle (AAB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-play-app-bundle-aab
+          path: build/app/outputs/bundle/release/*.aab
+          retention-days: 30
+
+      - name: 📤 Upload Direct Install APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-install-release-apks
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+
+      - name: 🚀 Create GitHub Release (On Tag Push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/bundle/release/*.aab
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          generate_release_notes: true

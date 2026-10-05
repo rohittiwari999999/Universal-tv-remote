@@ -176,5 +176,107 @@ keytool -genkey -v \\
 3. Complete App Content (Privacy, Data Safety, IARC rating)
 4. Upload AAB to Closed Testing Track (20 testers for 14 days)
 5. Apply for Production & Go Live!`
+  },
+  {
+    id: 'github_actions_workflow',
+    name: 'build_flutter_apk_aab.yml',
+    path: '/.github/workflows/build_flutter_apk_aab.yml',
+    category: 'Publishing Guides',
+    summary: 'Automated GitHub Actions CI/CD workflow to build, sign, and upload release APKs and Google Play AAB bundles automatically.',
+    badge: 'GitHub CI/CD',
+    content: `name: Build & Release Flutter TV Remote (APK & AAB)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (all, aab, apk)'
+        required: true
+        default: 'all'
+        type: choice
+        options: [ all, aab, apk ]
+
+jobs:
+  build:
+    name: Build Flutter APK & AAB
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Configure Keystore Signing
+        env:
+          KEYSTORE_BASE64: \${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: \${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: \${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: \${{ secrets.KEY_PASSWORD }}
+        run: |
+          mkdir -p android/app
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
+          fi
+
+      - name: Build Google Play Bundle (AAB)
+        run: flutter build appbundle --release --obfuscate --split-debug-info=build/app/outputs/symbols
+
+      - name: Build Universal & Split APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-play-app-bundle-aab
+          path: build/app/outputs/bundle/release/*.aab
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-install-release-apks
+          path: build/app/outputs/flutter-apk/*.apk`
+  },
+  {
+    id: 'github_guide',
+    name: 'GITHUB_ACTIONS_CI_CD_GUIDE.md',
+    path: '/play_console_release/GITHUB_ACTIONS_CI_CD_GUIDE.md',
+    category: 'Publishing Guides',
+    summary: 'Instructions for setting up GitHub Secrets (KEYSTORE_BASE64, KEYSTORE_PASSWORD) and downloading built AAB/APK artifacts.',
+    badge: 'Guide',
+    content: `# GitHub Actions CI/CD Guide for Flutter Universal TV Remote
+
+1. Go to GitHub Repo > Settings > Secrets and variables > Actions > New repository secret
+2. Add secrets:
+   - KEYSTORE_BASE64: base64 -w 0 android/app/upload-keystore.jks
+   - KEYSTORE_PASSWORD: Your keystore password
+   - KEY_ALIAS: upload
+   - KEY_PASSWORD: Your key password
+
+3. Push to main or trigger via Actions tab > "Run workflow"
+4. Download AAB and APK directly from the Artifacts section!`
   }
 ];
