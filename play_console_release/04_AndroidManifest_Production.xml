@@ -1,0 +1,106 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.omnitech.universal.tv.remote">
+
+    <!-- ============================================================== -->
+    <!-- HARDWARE CAPABILITIES (CRITICAL FOR PLAY STORE DEVICE COMPAT)   -->
+    <!-- ============================================================== -->
+    <!-- android:required="false" ensures devices WITHOUT an IR Blaster  -->
+    <!-- (like Pixel, Samsung S-Series) can still install via Play Store -->
+    <!-- to use Bluetooth & Wi-Fi Smart TV remote features!              -->
+    <uses-feature
+        android:name="android.hardware.consumerir"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+
+    <!-- ============================================================== -->
+    <!-- PERMISSIONS: INFRARED EMITTER                                  -->
+    <!-- ============================================================== -->
+    <!-- Required to transmit modulated 36-40kHz infrared pulses         -->
+    <uses-permission android:name="android.permission.TRANSMIT_IR" />
+
+    <!-- ============================================================== -->
+    <!-- PERMISSIONS: BLUETOOTH LOW ENERGY (ANDROID 12+ / API 31+)      -->
+    <!-- ============================================================== -->
+    <!-- android:usesPermissionFlags="neverForLocation" assures Google   -->
+    <!-- Play that BLE scanning is NOT used to determine device location -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT"
+        tools:targetApi="s" />
+
+    <!-- Legacy Bluetooth permissions for Android 11 (API 30) and below  -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <!-- ============================================================== -->
+    <!-- PERMISSIONS: WI-FI & LOCAL NETWORK (SMART TV DISCOVERY)        -->
+    <!-- ============================================================== -->
+    <!-- INTERNET: To reach Firebase database & local LAN Smart TVs      -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    
+    <!-- CHANGE_WIFI_MULTICAST_STATE is REQUIRED for SSDP M-SEARCH       -->
+    <!-- packets to discover Samsung Tizen, LG webOS, & Sony Bravia TVs  -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- ============================================================== -->
+    <!-- PERMISSIONS: HAPTIC FEEDBACK                                   -->
+    <!-- ============================================================== -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:label="Universal TV Remote"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:theme="@style/LaunchTheme"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Don't delete the meta-data below. This is used by the Flutter tool -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>

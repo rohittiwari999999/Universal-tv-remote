@@ -1,0 +1,118 @@
+// Production android/app/build.gradle for Flutter Universal TV Remote Control
+// Compliant with Google Play Store 2026 Policy (Target SDK 35+)
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services" // For Firebase Core & Firestore
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0.0'
+}
+
+// Load production release keystore properties securely from key.properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace "com.omnitech.universal.tv.remote"
+    compileSdk 35 // Required by Google Play Console 2026
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        applicationId "com.omnitech.universal.tv.remote"
+        // Min SDK 21 covers 99.4% of Android devices worldwide
+        minSdk 21
+        targetSdk 35 // Latest Google Play Console policy requirement
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+
+        // Restrict architecture to modern 32-bit and 64-bit ARM + x86_64
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Enable R8 code shrinking and resource optimization
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Sign with release keystore if available, otherwise fallback to debug
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    bundle {
+        language {
+            enableSplit = false // Retain all localization strings in master bundle
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    // AndroidX Consumer IR Support
+    implementation "androidx.core:core-ktx:1.13.1"
+    
+    // Firebase BoM for unified dependency versions
+    implementation platform('com.google.firebase:firebase-bom:33.4.0')
+    implementation 'com.google.firebase:firebase-firestore'
+    implementation 'com.google.firebase:firebase-analytics'
+}

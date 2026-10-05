@@ -1,0 +1,6 @@
+{
+  "name": "Universal TV Remote Studio & Play Release Architect",
+  "description": "Cross-platform Flutter Universal TV Remote Control architecture, IR/BLE/Wi-Fi simulator for global and Indian TV brands, Firebase database schemas, and complete Google Play Console release files.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

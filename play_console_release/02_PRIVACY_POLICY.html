@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - Universal TV Remote: IR & WiFi</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 20px;
+      background-color: #f9fafb;
+    }
+    .container {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e5e7eb;
+    }
+    h1 { color: #111827; font-size: 28px; margin-bottom: 8px; }
+    h2 { color: #1f2937; font-size: 20px; margin-top: 32px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+    h3 { color: #374151; font-size: 16px; margin-top: 20px; }
+    p, li { font-size: 15px; color: #4b5563; }
+    ul { padding-left: 24px; }
+    .badge { display: inline-block; background-color: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .updated-date { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+    footer { margin-top: 40px; font-size: 13px; color: #9ca3af; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Privacy Policy</h1>
+    <div class="updated-date">Last Updated: October 2026 | Effective Date: Immediately</div>
+
+    <p>This Privacy Policy explains how <strong>Universal TV Remote: IR &amp; WiFi</strong> ("we", "us", or "our") collects, uses, and safeguards information when you use our mobile application on Android and iOS devices. We prioritize your privacy: <strong>our application does not collect, store, sell, or share personal identifiable information (PII)</strong>.</p>
+
+    <h2>1. Information We Do NOT Collect</h2>
+    <ul>
+      <li>We <strong>do not</strong> collect your name, email address, phone number, or physical address.</li>
+      <li>We <strong>do not</strong> track your precise or approximate physical GPS location.</li>
+      <li>We <strong>do not</strong> record microphone audio, camera imagery, contact lists, or device storage files.</li>
+      <li>We <strong>do not</strong> sell your data to any data brokers or ad networks.</li>
+    </ul>
+
+    <h2>2. Device Hardware Permissions &amp; Why We Request Them</h2>
+    <p>To communicate with traditional and Smart TVs, our app requests specific runtime and hardware capabilities:</p>
+
+    <h3>A. Infrared Hardware (Consumer IR)</h3>
+    <p><strong>Permission:</strong> <code>android.permission.TRANSMIT_IR</code><br>
+    <strong>Purpose:</strong> Used exclusively to transmit modulated infrared pulses (typically 36kHz–40kHz carrier frequencies) through your phone's built-in IR blaster to control traditional non-smart TVs. This permission is marked as <code>required="false"</code> in our manifest so users with non-IR phones can still enjoy Bluetooth and Wi-Fi features.</p>
+
+    <h3>B. Bluetooth Low Energy (BLE)</h3>
+    <p><strong>Permissions:</strong> <code>BLUETOOTH_SCAN</code>, <code>BLUETOOTH_CONNECT</code> (with <code>android:usesPermissionFlags="neverForLocation"</code> on Android 12+)<br>
+    <strong>Purpose:</strong> Used strictly to detect and pair with Bluetooth-enabled Smart TVs nearby and send remote navigation keycodes. We explicitly certify to Google Play that <strong>no Bluetooth data is used to infer or track user location</strong>.</p>
+
+    <h3>C. Local Wi-Fi Network &amp; Multicast State</h3>
+    <p><strong>Permissions:</strong> <code>ACCESS_WIFI_STATE</code>, <code>CHANGE_WIFI_MULTICAST_STATE</code>, <code>INTERNET</code><br>
+    <strong>Purpose:</strong> Enables SSDP (Simple Service Discovery Protocol) and mDNS Bonjour discovery to find Smart TVs (Samsung Tizen, LG webOS, Sony Bravia, Android TV) connected to your private local home network, and transmit remote commands via local LAN sockets.</p>
+
+    <h3>D. Vibration / Haptics</h3>
+    <p><strong>Permission:</strong> <code>VIBRATE</code><br>
+    <strong>Purpose:</strong> Provides tactile feedback when tapping buttons on the virtual remote control interface.</p>
+
+    <h2>3. Cloud Services &amp; Offline Caching</h2>
+    <p>We use <strong>Google Firebase Firestore</strong> solely as a public, read-only content repository to deliver up-to-date IR hex codes and Smart TV command mappings for global and Indian TV manufacturers (Vu, Mi, Thomson, Micromax, Lloyd, Onida, Samsung, LG, Sony, etc.). No personal profile is created or saved in Firestore.</p>
+    <p>Data fetched from Firestore is cached locally on your device storage (using sandboxed app storage) so the remote operates completely offline without internet connectivity.</p>
+
+    <h2>4. Children’s Privacy (COPPA &amp; GDPR Compliance)</h2>
+    <p>Our app is safe for general audiences of all ages. We do not knowingly collect personal information from children under the age of 13. Since no personal data is collected from any user, our application fully complies with the Children's Online Privacy Protection Act (COPPA) and EU GDPR requirements.</p>
+
+    <h2>5. Security of Transmission</h2>
+    <p>All communication with our cloud repository occurs over encrypted connections (HTTPS / TLS 1.3). Wi-Fi Smart TV commands remain strictly within your local home network (LAN) and never leave your premises.</p>
+
+    <h2>6. Changes to This Privacy Policy</h2>
+    <p>We may update this policy periodically to reflect updates in operating system guidelines (e.g., future Android or iOS permission models). Any updates will be published with a revised effective date.</p>
+
+    <h2>7. Contact Information</h2>
+    <p>If you have any questions or concerns regarding our privacy practices, please contact us at:</p>
+    <p><strong>Email:</strong> <code>support@omnitechremotes.com</code><br>
+    <strong>Website:</strong> <a href="https://omnitechremotes.web.app" target="_blank" rel="noopener">https://omnitechremotes.web.app</a></p>
+
+    <footer>
+      &copy; 2026 Universal TV Remote Development Team. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>

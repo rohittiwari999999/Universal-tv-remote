@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FirestoreUniversalTvRemoteDatabaseSchema",
+  "description": "Firestore document collection architecture for Global & Indian TV IR Hex codes, Bluetooth protocols, and Wi-Fi commands.",
+  "collections": {
+    "tv_brands": {
+      "document_id": "{brand_id} (e.g. marq, onida, onida_smart, oneplus, realme, kodak, croma, videocon, intex, sansui, daiwa, vu, mi, thomson, micromax, lloyd, bpl, sanyo, samsung, lg, sony, hisense, philips, panasonic, tcl, haier, toshiba, sharp)",
+      "fields": {
+        "id": "string",
+        "name": "string",
+        "category": "string ('global' | 'indian_local')",
+        "country": "string",
+        "popularity_rank": "number",
+        "supported_protocols": "array<string> ('IR', 'BLE', 'WIFI_TIZEN', 'WIFI_WEBOS', 'WIFI_BRAVIA', 'WIFI_ANDROID_TV')",
+        "default_carrier_frequency": "number (e.g. 38000)",
+        "models_count": "number",
+        "logo_asset": "string"
+      },
+      "subcollections": {
+        "remote_profiles": {
+          "document_id": "{profile_id} (e.g. nec_profile_1, smart_ble_v2, legacy_rc5)",
+          "fields": {
+            "profile_name": "string",
+            "protocol_type": "string ('NEC' | 'RC5' | 'SONY_SIRC' | 'BLE_GATT' | 'WIFI_REST')",
+            "carrier_frequency": "number",
+            "layout_type": "string ('smart_modern' | 'classic_dth' | 'minimalist_ott')",
+            "applicable_models": "array<string>",
+            "keys": {
+              "power": { "label": "Power", "nec_hex": "string", "pronto_hex": "string" },
+              "mute": { "label": "Mute", "nec_hex": "string" },
+              "vol_up": { "label": "Vol +", "nec_hex": "string" },
+              "vol_down": { "label": "Vol -", "nec_hex": "string" },
+              "ch_up": { "label": "CH +", "nec_hex": "string" },
+              "ch_down": { "label": "CH -", "nec_hex": "string" },
+              "source_input": { "label": "Source", "nec_hex": "string" },
+              "dpad_up": { "label": "Up", "nec_hex": "string" },
+              "dpad_down": { "label": "Down", "nec_hex": "string" },
+              "dpad_left": { "label": "Left", "nec_hex": "string" },
+              "dpad_right": { "label": "Right", "nec_hex": "string" },
+              "dpad_ok": { "label": "Select", "nec_hex": "string" },
+              "home": { "label": "Home", "nec_hex": "string" },
+              "back": { "label": "Back", "nec_hex": "string" },
+              "menu": { "label": "Menu", "nec_hex": "string" },
+              "netflix": { "label": "Netflix", "nec_hex": "string" },
+              "prime_video": { "label": "Prime Video", "nec_hex": "string" },
+              "youtube": { "label": "YouTube", "nec_hex": "string" },
+              "hotstar": { "label": "Disney+ Hotstar", "nec_hex": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sample_records": [
+    {
+      "brand": "MarQ by Flipkart",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x00FE48B7",
+      "vol_up_hex": "0x00FE58A7",
+      "vol_down_hex": "0x00FE7887",
+      "source_hex": "0x00FEA05F",
+      "home_hex": "0x00FE1AE5",
+      "hotstar_hex": "0x00FE708F",
+      "youtube_hex": "0x00FE8A75"
+    },
+    {
+      "brand": "Onida (Classic)",
+      "category": "indian_local",
+      "carrier_frequency": 36000,
+      "protocol": "RC5",
+      "power_hex": "0x0000140C",
+      "vol_up_hex": "0x00001410",
+      "vol_down_hex": "0x00001411",
+      "source_hex": "0x00001438",
+      "menu_hex": "0x0000142B"
+    },
+    {
+      "brand": "Onida Smart TV (Fire TV / Android)",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x01FE40BF",
+      "vol_up_hex": "0x01FE807F",
+      "vol_down_hex": "0x01FEC03F",
+      "prime_hex": "0x01FE8877",
+      "hotstar_hex": "0x01FEC837"
+    },
+    {
+      "brand": "OnePlus TV",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC_AND_BLE",
+      "power_hex": "0x32CD02FD",
+      "vol_up_hex": "0x32CD0EF1",
+      "vol_down_hex": "0x32CD12ED",
+      "home_hex": "0x32CD1AE5",
+      "netflix_hex": "0x32CD36C9"
+    },
+    {
+      "brand": "Realme Smart TV",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC_AND_BLE",
+      "power_hex": "0x51AE02FD",
+      "vol_up_hex": "0x51AE0EF1",
+      "vol_down_hex": "0x51AE12ED",
+      "youtube_hex": "0x51AE36C9"
+    },
+    {
+      "brand": "Kodak HD LED TV",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x708F12ED",
+      "vol_up_hex": "0x708F1AE5",
+      "vol_down_hex": "0x708F9A65",
+      "home_hex": "0x708F3AC5"
+    },
+    {
+      "brand": "Croma TV",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x01FE02FD",
+      "vol_up_hex": "0x01FE0EF1",
+      "vol_down_hex": "0x01FE12ED",
+      "source_hex": "0x01FE1EE1"
+    },
+    {
+      "brand": "Videocon",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x10EF02FD",
+      "vol_up_hex": "0x10EF0EF1",
+      "vol_down_hex": "0x10EF12ED",
+      "source_hex": "0x10EF1EE1"
+    },
+    {
+      "brand": "Intex Technologies",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x00FF827D",
+      "vol_up_hex": "0x00FFA25D",
+      "vol_down_hex": "0x00FFB24D"
+    },
+    {
+      "brand": "Sansui India",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0xF10E02FD",
+      "vol_up_hex": "0xF10E0EF1",
+      "vol_down_hex": "0xF10E12ED"
+    },
+    {
+      "brand": "Daiwa / Shinco",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x04FB12ED",
+      "vol_up_hex": "0x04FB1AE5",
+      "home_hex": "0x04FB3AC5"
+    },
+    {
+      "brand": "Vu Televisions",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x01FE48B7",
+      "vol_up_hex": "0x01FE58A7",
+      "hotstar_hex": "0x01FE708F"
+    },
+    {
+      "brand": "Mi (Xiaomi)",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC_AND_BLE",
+      "power_hex": "0x21DE40BF",
+      "vol_up_hex": "0x21DE807F",
+      "patchwall_hex": "0x21DE609F"
+    },
+    {
+      "brand": "Thomson",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x807F12ED",
+      "vol_up_hex": "0x807F1AE5"
+    },
+    {
+      "brand": "Micromax",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x00FF02FD",
+      "vol_up_hex": "0x00FF0AF5"
+    },
+    {
+      "brand": "Lloyd",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x02FD48B7",
+      "vol_up_hex": "0x02FD58A7"
+    },
+    {
+      "brand": "BPL",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x61A0F00F",
+      "vol_up_hex": "0x61A0D02F"
+    },
+    {
+      "brand": "Sanyo",
+      "category": "indian_local",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x38C708F7",
+      "vol_up_hex": "0x38C718E7"
+    },
+    {
+      "brand": "Samsung",
+      "category": "global",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0xE0E040BF",
+      "vol_up_hex": "0xE0E0E01F"
+    },
+    {
+      "brand": "LG",
+      "category": "global",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0x20DF10EF",
+      "vol_up_hex": "0x20DF40BF"
+    },
+    {
+      "brand": "Sony",
+      "category": "global",
+      "carrier_frequency": 40000,
+      "protocol": "SONY_SIRC",
+      "power_hex": "0x00000A90",
+      "vol_up_hex": "0x00000490"
+    },
+    {
+      "brand": "Hisense",
+      "category": "global",
+      "carrier_frequency": 38000,
+      "protocol": "NEC",
+      "power_hex": "0xF70812ED",
+      "vol_up_hex": "0xF7081AE5"
+    },
+    {
+      "brand": "Philips",
+      "category": "global",
+      "carrier_frequency": 36000,
+      "protocol": "RC5",
+      "power_hex": "0x0000000C",
+      "vol_up_hex": "0x00000010"
+    }
+  ]
+}
