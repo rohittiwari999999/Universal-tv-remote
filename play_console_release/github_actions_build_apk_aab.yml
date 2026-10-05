@@ -53,10 +53,13 @@ jobs:
         run: |
           flutter --version
 
-      - name: 🛠️ Bootstrap Project Structure (If missing)
+      - name: 🛠️ Sanitize Dependencies & Bootstrap Android
         run: |
+          sed -i '/ir_sensor_plugin/d' pubspec.yaml || true
+          sed -i '/upnp_client/d' pubspec.yaml || true
+
           if [ ! -d "android" ]; then
-            echo "Initializing Android platform project without automatic pub get..."
+            echo "Initializing Android platform project without automatic pub..."
             flutter create . --platforms=android --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote --no-pub
           fi
 

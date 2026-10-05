@@ -54,11 +54,16 @@ jobs:
         run: |
           flutter --version
 
-      # Step 5: Ensure Flutter Android Project Structure Exists
-      - name: 🛠️ Bootstrap Project Structure (If missing)
+      # Step 5: Sanitize pubspec.yaml & Bootstrap Android Structure
+      - name: 🛠️ Sanitize Dependencies & Bootstrap Android
         run: |
+          echo "Checking pubspec.yaml for obsolete packages..."
+          # Strip outdated non-null-safe packages that cause version solving errors
+          sed -i '/ir_sensor_plugin/d' pubspec.yaml || true
+          sed -i '/upnp_client/d' pubspec.yaml || true
+
           if [ ! -d "android" ]; then
-            echo "Initializing Android platform project without automatic pub get..."
+            echo "Initializing Android platform project without automatic pub..."
             flutter create . --platforms=android --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote --no-pub
           fi
 
@@ -68,6 +73,7 @@ jobs:
           if [ -f "play_console_release/04_AndroidManifest_Production.xml" ]; then
             mkdir -p android/app/src/main
             cp play_console_release/04_AndroidManifest_Production.xml android/app/src/main/AndroidManifest.xml
+            echo "Injected production AndroidManifest.xml"
           fi
 
       # Step 6: Install Flutter Dependencies (Pure Null-Safe)
