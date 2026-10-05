@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:ir_sensor_plugin/ir_sensor_plugin.dart';
 
 /// Production-ready Infrared (IR) Blaster Service for Android Devices.
 /// Handles hardware verification, carrier frequency validation,
-/// NEC protocol pulse modulation, and raw Pronto Hex transmission.
+/// NEC protocol pulse modulation, and raw Pronto Hex transmission
+/// using native Android ConsumerIrManager (100% Null-Safe, Zero external deps).
 class IrService {
   static const MethodChannel _platformChannel =
       MethodChannel('com.omnitech.universal.tv.remote/consumer_ir');
@@ -16,18 +16,8 @@ class IrService {
       return false;
     }
     try {
-      final bool hasEmitter = await IrSensorPlugin.hasIrEmitter;
-      return hasEmitter;
-    } on PlatformException catch (e) {
-      // Fallback to direct Android ConsumerIrManager check via platform channel
-      try {
-        final bool result =
-            await _platformChannel.invokeMethod('hasIrEmitter') ?? false;
-        return result;
-      } catch (fallbackError) {
-        // Device lacks ConsumerIrManager system service
-        return false;
-      }
+      final bool? result = await _platformChannel.invokeMethod('hasIrEmitter');
+      return result ?? false;
     } catch (_) {
       return false;
     }
@@ -37,10 +27,14 @@ class IrService {
   static Future<List<String>> getCarrierFrequencies() async {
     if (!Platform.isAndroid) return [];
     try {
-      final String frequencies = await IrSensorPlugin.getCarrierFrequencies;
-      return frequencies.split(';');
-    } catch (e) {
-      return ['38000Hz (Default standard)'];
+      final List<dynamic>? frequencies =
+          await _platformChannel.invokeMethod('getCarrierFrequencies');
+      if (frequencies != null) {
+        return frequencies.map((e) => e.toString()).toList();
+      }
+      return ['38000-38000'];
+    } catch (_) {
+      return ['38000-38000'];
     }
   }
 
@@ -56,27 +50,14 @@ class IrService {
           'This device does not have an Infrared (IR) Blaster.');
     }
 
-    try {
-      // Method A: Using ir_sensor_plugin
-      final String cleanHex = prontoHex.trim().replaceAll(RegExp(r'\s+'), ' ');
-      final String response =
-          await IrSensorPlugin.transmitString(pattern: cleanHex);
-      return response == 'Emitting' || response == 'Success';
-    } catch (pluginError) {
-      // Method B: Convert Pronto HEX string to microsecond pulse array and invoke ConsumerIrManager
-      try {
-        final List<int> pattern = prontoToMicroseconds(prontoHex);
-        return await transmitPattern(
-          carrierFrequency: carrierFrequency,
-          pattern: pattern,
-        );
-      } catch (e) {
-        rethrow;
-      }
-    }
+    final List<int> pattern = prontoToMicroseconds(prontoHex);
+    return await transmitPattern(
+      carrierFrequency: carrierFrequency,
+      pattern: pattern,
+    );
   }
 
-  /// 4. Transmits an IR command using standard 32-bit NEC Hex (e.g., "0x20DF10EF").
+  /// 4. Transmits an IR command using standard 32-bit NEC Hex (e.g., "0xE0E040BF").
   /// Generates the exact microsecond timings for 38kHz NEC modulation:
   /// - Leader: 9000µs Mark, 4500µs Space
   /// - Logical 0: 560µs Mark, 560µs Space
@@ -105,15 +86,8 @@ class IrService {
         'pattern': pattern,
       });
       return success ?? true;
-    } on PlatformException {
-      // Fallback to ir_sensor_plugin list transmission
-      try {
-        final String patternStr = pattern.join(',');
-        await IrSensorPlugin.transmitListInt(list: pattern);
-        return true;
-      } catch (_) {
-        return false;
-      }
+    } catch (_) {
+      return false;
     }
   }
 
@@ -151,8 +125,6 @@ class IrService {
       throw FormatException('Invalid Pronto HEX format: too few tokens.');
     }
 
-    // Token 0: preamble (0000 = raw learned code)
-    // Token 1: frequency divisor: frequency = 1000000 / (divisor * 0.241246)
     int freqDivisor = int.parse(tokens[1], radix: 16);
     double unitMicros = freqDivisor * 0.241246;
 

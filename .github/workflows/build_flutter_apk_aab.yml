@@ -57,27 +57,23 @@ jobs:
       # Step 5: Ensure Flutter Android Project Structure Exists
       - name: 🛠️ Bootstrap Project Structure (If missing)
         run: |
-          # If repository root does not have android/ folder, initialize it
           if [ ! -d "android" ]; then
-            echo "Initializing Android platform project..."
-            flutter create . --platforms=android,ios --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote
+            echo "Initializing Android platform project without automatic pub get..."
+            flutter create . --platforms=android --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote --no-pub
           fi
 
-          # Ensure asset directories exist to prevent missing-asset build failures
           mkdir -p assets/database assets/sounds assets/brands
           touch assets/database/.gitkeep assets/sounds/.gitkeep assets/brands/.gitkeep
 
-          # Copy production manifest & gradle if available in play_console_release
           if [ -f "play_console_release/04_AndroidManifest_Production.xml" ]; then
             mkdir -p android/app/src/main
             cp play_console_release/04_AndroidManifest_Production.xml android/app/src/main/AndroidManifest.xml
-            echo "✅ Injected production AndroidManifest with IR and BLE neverForLocation."
           fi
 
-      # Step 6: Install Flutter Dependencies
+      # Step 6: Install Flutter Dependencies (Pure Null-Safe)
       - name: 📦 Install Flutter Dependencies
         run: |
-          echo "Running flutter pub get..."
+          echo "Running flutter pub get with clean null-safe dependencies..."
           flutter pub get
 
       # Step 7: Configure Keystore Signing (Production or CI Fallback)
@@ -97,7 +93,7 @@ jobs:
             echo "storeFile=upload-keystore.jks" >> android/key.properties
             echo "✅ Configured keystore from GitHub Secrets."
           else
-            echo "ℹ️ KEYSTORE_BASE64 secret not provided. Generating CI signing keystore..."
+            echo "ℹ️ Generating CI signing keystore..."
             keytool -genkey -v \
               -keystore android/app/upload-keystore.jks \
               -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \

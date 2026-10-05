@@ -12,8 +12,7 @@ dependencies:
     sdk: flutter
 
   # 1. INFRARED TRANSMISSION (ANDROID HARDWARE)
-  # JNI bindings to Android ConsumerIrManager (38kHz NEC / Pronto Hex)
-  ir_sensor_plugin: ^0.1.0
+  # Native Android ConsumerIrManager via 100% null-safe platform channel (Zero outdated packages)
 
   # 2. BLUETOOTH LOW ENERGY (CROSS-PLATFORM iOS & ANDROID)
   # Tested with neverForLocation permission flag on Android 12+

@@ -56,8 +56,8 @@ jobs:
       - name: 🛠️ Bootstrap Project Structure (If missing)
         run: |
           if [ ! -d "android" ]; then
-            echo "Initializing Android platform project..."
-            flutter create . --platforms=android,ios --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote
+            echo "Initializing Android platform project without automatic pub get..."
+            flutter create . --platforms=android --org=com.omnitech.universal.tv.remote --project-name=universal_tv_remote --no-pub
           fi
 
           mkdir -p assets/database assets/sounds assets/brands
@@ -68,7 +68,7 @@ jobs:
             cp play_console_release/04_AndroidManifest_Production.xml android/app/src/main/AndroidManifest.xml
           fi
 
-      - name: 📦 Install Flutter Dependencies
+      - name: 📦 Install Flutter Dependencies (Pure Null-Safe)
         run: |
           flutter pub get
 
