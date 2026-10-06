@@ -57,10 +57,12 @@ jobs:
       # Step 5: Sanitize pubspec.yaml & Bootstrap Android Structure
       - name: 🛠️ Sanitize Dependencies & Bootstrap Android
         run: |
-          echo "Checking pubspec.yaml for obsolete packages..."
-          # Strip outdated non-null-safe packages that cause version solving errors
+          echo "Sanitizing pubspec.yaml to prevent package version conflicts..."
+          # Strip obsolete non-null-safe packages
           sed -i '/ir_sensor_plugin/d' pubspec.yaml || true
           sed -i '/upnp_client/d' pubspec.yaml || true
+          # Auto-upgrade web_socket_channel to ^3.0.3 to match Firebase package:web requirements
+          sed -i 's/web_socket_channel: .*/web_socket_channel: ^3.0.3/g' pubspec.yaml || true
 
           if [ ! -d "android" ]; then
             echo "Initializing Android platform project without automatic pub..."
@@ -79,8 +81,8 @@ jobs:
       # Step 6: Install Flutter Dependencies (Pure Null-Safe)
       - name: 📦 Install Flutter Dependencies
         run: |
-          echo "Running flutter pub get with clean null-safe dependencies..."
-          flutter pub get
+          echo "Running flutter pub get..."
+          flutter pub get || flutter pub upgrade --major-versions
 
       # Step 7: Configure Keystore Signing (Production or CI Fallback)
       - name: 🔑 Configure Android Keystore Signing

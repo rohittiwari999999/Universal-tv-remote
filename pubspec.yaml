@@ -11,33 +11,29 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 1. INFRARED TRANSMISSION (ANDROID HARDWARE)
-  # Native Android ConsumerIrManager via 100% null-safe platform channel (Zero outdated packages)
-
-  # 2. BLUETOOTH LOW ENERGY (CROSS-PLATFORM iOS & ANDROID)
-  # Tested with neverForLocation permission flag on Android 12+
+  # 1. BLUETOOTH LOW ENERGY (CROSS-PLATFORM iOS & ANDROID)
   flutter_blue_plus: ^1.34.5
 
-  # 3. NETWORK DISCOVERY & SMART TV PROTOCOLS (Wi-Fi)
-  # Native SSDP M-SEARCH is implemented via dart:io RawDatagramSocket (Zero third-party dependency)
-  web_socket_channel: ^2.4.5
-  http: ^1.2.1
+  # 2. NETWORK DISCOVERY & SMART TV PROTOCOLS (Wi-Fi)
+  # Updated to ^3.0.3 for full package:web 1.0.0 and Firebase compatibility
+  web_socket_channel: ^3.0.3
+  http: ^1.2.2
   network_info_plus: ^5.0.1
 
-  # 4. FIREBASE & CLOUD DATABASE
+  # 3. FIREBASE & CLOUD DATABASE
   firebase_core: ^3.6.0
   cloud_firestore: ^5.4.4
 
-  # 5. LOCAL OFFLINE CACHING & FAST STORAGE
+  # 4. LOCAL OFFLINE CACHING & FAST STORAGE
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
-  # 6. ARCHITECTURE & STATE MANAGEMENT
+  # 5. ARCHITECTURE & STATE MANAGEMENT
   flutter_bloc: ^8.1.6
   equatable: ^2.0.5
   get_it: ^7.7.0
 
-  # 7. UI, HAPTICS & SOUND EFFECTS
+  # 6. UI, HAPTICS & SOUND EFFECTS
   flutter_vibrate: ^1.3.0
   audioplayers: ^6.0.0
   google_fonts: ^6.2.1

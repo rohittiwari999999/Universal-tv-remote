@@ -57,6 +57,7 @@ jobs:
         run: |
           sed -i '/ir_sensor_plugin/d' pubspec.yaml || true
           sed -i '/upnp_client/d' pubspec.yaml || true
+          sed -i 's/web_socket_channel: .*/web_socket_channel: ^3.0.3/g' pubspec.yaml || true
 
           if [ ! -d "android" ]; then
             echo "Initializing Android platform project without automatic pub..."
@@ -73,7 +74,7 @@ jobs:
 
       - name: 📦 Install Flutter Dependencies (Pure Null-Safe)
         run: |
-          flutter pub get
+          flutter pub get || flutter pub upgrade --major-versions
 
       - name: 🔑 Configure Android Keystore Signing
         env:
