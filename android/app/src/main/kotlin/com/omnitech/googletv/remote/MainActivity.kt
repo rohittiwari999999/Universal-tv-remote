@@ -186,6 +186,13 @@ class MainActivity : ComponentActivity() {
                                     pairingEngine.startPairing(selectedTv!!)
                                 }
                             },
+                            onConnectDirectly = {
+                                showPairingDialog = false
+                                val tv = selectedTv ?: return@PairingDialog
+                                lifecycleScope.launch {
+                                    remoteEngine.connect(tv)
+                                }
+                            },
                             onDismiss = {
                                 showPairingDialog = false
                                 pairingEngine.reset()
