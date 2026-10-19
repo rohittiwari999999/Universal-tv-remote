@@ -41,10 +41,20 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      # Step 3: Grant execute permission for gradlew
-      - name: 🔑 Make gradlew Executable
+      # Step 3: Setup Gradle & Ensure Wrapper is executable
+      - name: 🐘 Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: 🔑 Ensure Gradle Wrapper & Permissions
         run: |
-          chmod +x android/gradlew
+          cd android
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Generating Gradle 8.5 wrapper..."
+            gradle wrapper --gradle-version 8.5
+          fi
+          chmod +x gradlew
 
       # Step 4: Configure Keystore Signing (GitHub Secret or Automated CI Keystore)
       - name: 🔑 Configure Release Keystore Signing
