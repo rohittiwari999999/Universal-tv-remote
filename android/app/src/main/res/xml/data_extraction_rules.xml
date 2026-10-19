@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Standard cloud backup rules for Target SDK 31+ -->
+    </cloud-backup>
+    <device-transfer>
+        <!-- Standard device transfer rules -->
+    </device-transfer>
+</data-extraction-rules>

@@ -1,38 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.omnitech.universal.tv.remote">
+    package="com.omnitech.googletv.remote">
 
-    <!-- Crucial: required="false" so Pixel & non-IR phones can install -->
-    <uses-feature
-        android:name="android.hardware.consumerir"
-        android:required="false" />
-
-    <uses-feature
-        android:name="android.hardware.bluetooth_le"
-        android:required="false" />
-
-    <uses-feature
-        android:name="android.hardware.wifi"
-        android:required="false" />
-
-    <uses-permission android:name="android.permission.TRANSMIT_IR" />
-
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
-
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_CONNECT"
-        tools:targetApi="s" />
-
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-
+    <!-- Permissions required for Google TV mDNS Discovery and Local Network Control -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -40,34 +11,29 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
-        android:label="Universal TV Remote"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
-        android:theme="@style/LaunchTheme"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Google TV Remote"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GoogleTvRemote"
+        android:usesCleartextTraffic="true"
         tools:targetApi="35">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true"
+            android:label="Google TV Remote"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.GoogleTvRemote"
             android:windowSoftInputMode="adjustResize">
-            
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
-            
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
     </application>
+
 </manifest>
