@@ -61,17 +61,6 @@ class GoogleTvRemoteEngine(private val context: Context) {
             Log.i(TAG, "CONNECTED TO GOOGLE TV on port ${device.remotePort}! RemoteScreen ready.")
             _connectionState.value = RemoteConnectionState.Connected(device)
 
-            // Send initial client configure message to Google TV
-            try {
-                val clientConf = GoogleTvProtobuf.buildRemoteConfigure(622)
-                synchronized(outStream) {
-                    GoogleTvProtobuf.writeFramedMessage(outStream, clientConf)
-                }
-                Log.d(TAG, "Sent client remoteConfigure(622)")
-            } catch (e: Exception) {
-                Log.w(TAG, "Notice sending remoteConfigure: ${e.message}")
-            }
-
             // Start asynchronous continuous listener for keepalives and TV messages
             startContinuousListener(inStream, outStream, device)
 
@@ -79,7 +68,7 @@ class GoogleTvRemoteEngine(private val context: Context) {
             Log.e(TAG, "Connection to ${device.hostAddress}:${device.remotePort} failed: ${e.message}", e)
             val errorText = when {
                 e.message?.contains("handshake_failure", true) == true || e.message?.contains("SSL", true) == true ->
-                    "Authentication rejected by TV. Tap 'Re-pair' to generate a fresh PIN."
+                    "Authentication rejected by TV. Please tap 'Re-pair' to enter the code shown on your TV screen."
                 e.message?.contains("ECONNREFUSED", true) == true ->
                     "Connection refused on port ${device.remotePort}. Ensure TV is ON and connected to Wi-Fi."
                 e.message?.contains("ETIMEDOUT", true) == true ->
@@ -94,9 +83,22 @@ class GoogleTvRemoteEngine(private val context: Context) {
     private fun startContinuousListener(inStream: InputStream, outStream: OutputStream, device: DiscoveredGoogleTv) {
         receiveJob?.cancel()
         receiveJob = scope.launch {
+            // Initiator fallback: if TV doesn't send remote_configure within 800ms, send client configure
+            val initiatorJob = launch {
+                delay(800)
+                try {
+                    Log.d(TAG, "Sending proactive client remoteConfigure(622)")
+                    val conf = GoogleTvProtobuf.buildRemoteConfigure(622)
+                    synchronized(outStream) {
+                        GoogleTvProtobuf.writeFramedMessage(outStream, conf)
+                    }
+                } catch (ignored: Exception) {}
+            }
+
             try {
                 while (isActive) {
                     val rawMsg = GoogleTvProtobuf.readFramedMessage(inStream)
+                    initiatorJob.cancel()
                     val incoming = GoogleTvProtobuf.parseRemoteMessage(rawMsg)
 
                     // If TV sends remote_configure, respond with our client configuration
@@ -127,15 +129,17 @@ class GoogleTvRemoteEngine(private val context: Context) {
 
                     if (incoming.hasRemoteStart) {
                         Log.i(TAG, "TV confirmed remote_start: ready for all commands")
+                        _connectionState.value = RemoteConnectionState.Connected(device)
                     }
 
                     if (incoming.imeCounter != null) imeCounter = incoming.imeCounter
                     if (incoming.imeFieldCounter != null) imeFieldCounter = incoming.imeFieldCounter
                 }
             } catch (e: Exception) {
+                initiatorJob.cancel()
                 if (isActive) {
                     Log.w(TAG, "Remote connection stream ended: ${e.message}")
-                    _connectionState.value = RemoteConnectionState.Disconnected
+                    _connectionState.value = RemoteConnectionState.Error("Disconnected from TV: ${e.message ?: "Connection reset"}")
                 }
             }
         }

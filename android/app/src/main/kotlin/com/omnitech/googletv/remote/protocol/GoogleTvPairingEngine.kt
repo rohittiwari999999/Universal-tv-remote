@@ -83,15 +83,7 @@ class GoogleTvPairingEngine(private val context: Context) {
             }
 
             if (connectedSocket == null) {
-                // If port 6467 timed out, check if TV is already paired on port 6466
-                Log.d(TAG, "Port 6467 not responding. Checking if TV is already paired on port ${device.remotePort}...")
-                if (checkIfAlreadyPairedOnRemotePort(device)) {
-                    Log.i(TAG, "TV is ALREADY PAIRED on port ${device.remotePort}! Direct connection possible.")
-                    _pairingState.value = PairingState.Paired(device)
-                    return@withContext
-                }
-
-                throw lastEx ?: IllegalStateException("Could not connect to ${device.hostAddress}:${device.pairingPort}")
+                throw lastEx ?: IllegalStateException("Could not connect to Google TV on port ${device.pairingPort}")
             }
 
             // Extract peer and local X.509 certificates for the crypto secret
@@ -111,7 +103,7 @@ class GoogleTvPairingEngine(private val context: Context) {
 
             // Phase 1: Send PairingRequest
             Log.d(TAG, "Step 1: Sending PairingRequest...")
-            val reqBytes = GoogleTvProtobuf.buildPairingRequest(clientName = "Google TV Remote (Android)")
+            val reqBytes = GoogleTvProtobuf.buildPairingRequest(serviceName = "atvremote", clientName = "atvremote")
             GoogleTvProtobuf.writeFramedMessage(outStream, reqBytes)
 
             // Read response: PairingRequestAck
@@ -156,29 +148,11 @@ class GoogleTvPairingEngine(private val context: Context) {
                 e.message?.contains("failed to connect", true) == true || e.message?.contains("ETIMEDOUT", true) == true ->
                     "TV connection timed out on port ${device.pairingPort}.\nMake sure TV screen is ON (not in Standby) and on same Wi-Fi."
                 e.message?.contains("ECONNREFUSED", true) == true ->
-                    "TV refused pairing connection. TV may already be paired or in standby."
+                    "TV refused pairing connection on port 6467. Ensure TV screen is awake."
                 else -> e.localizedMessage ?: "Pairing handshake failed"
             }
             _pairingState.value = PairingState.Error(msg)
             closeExisting()
-        }
-    }
-
-    private fun checkIfAlreadyPairedOnRemotePort(device: DiscoveredGoogleTv): Boolean {
-        var testSocket: SSLSocket? = null
-        return try {
-            val sslContext = GoogleTvCrypto.getOrCreateSslContext(context)
-            testSocket = sslContext.socketFactory.createSocket() as SSLSocket
-            testSocket.connect(InetSocketAddress(device.hostAddress, device.remotePort), 3000)
-            testSocket.soTimeout = 4000
-            testSocket.startHandshake()
-            Log.i(TAG, "Successfully authenticated on remote command port ${device.remotePort}!")
-            true
-        } catch (e: Exception) {
-            Log.d(TAG, "Remote port check on ${device.remotePort} failed: ${e.message}")
-            false
-        } finally {
-            try { testSocket?.close() } catch (ignored: Exception) {}
         }
     }
 
