@@ -130,7 +130,7 @@ class GoogleTvDiscoveryManager(private val context: Context) {
                     name = friendlyName,
                     hostAddress = host,
                     pairingPort = 6467,
-                    remotePort = if (port == 6467) 6466 else port,
+                    remotePort = 6466,
                     model = extractModelFromAttributes(resolvedInfo),
                     signalStrengthDbm = -45 - (Math.random() * 20).toInt(),
                     isPaired = isDevicePreviouslyPaired(deviceId)
