@@ -5,24 +5,18 @@ import android.util.Log
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.model.RemoteConnectionState
 import com.omnitech.googletv.remote.model.TvKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import javax.net.ssl.SSLSocket
 
 /**
- * Communicates with Google TV over the Remote Control Command Channel (port 6466).
- * Sends KeyEvents (DPad, Home, Back, Volume, Power), IME Text strings, and responds to Pings.
+ * Communicates with Google TV over the authentic Remote Control Command Channel (Port 6466).
+ * Sends real KeyEvents, Ping responses, and App deep link launches using Google TV Protobuf framing.
  */
 class GoogleTvRemoteEngine(private val context: Context) {
 
@@ -36,8 +30,11 @@ class GoogleTvRemoteEngine(private val context: Context) {
     private var outputStream: OutputStream? = null
 
     private var connectedDevice: DiscoveredGoogleTv? = null
-    private var pingJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private var receiveJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private var imeCounter = 0
+    private var imeFieldCounter = 0
 
     suspend fun connect(device: DiscoveredGoogleTv) = withContext(Dispatchers.IO) {
         disconnect()
@@ -45,157 +42,151 @@ class GoogleTvRemoteEngine(private val context: Context) {
         _connectionState.value = RemoteConnectionState.Connecting(device)
 
         try {
+            Log.d(TAG, "Connecting to Google TV remote command channel at ${device.hostAddress}:${device.remotePort}")
             val sslContext = GoogleTvCrypto.getOrCreateSslContext(context)
             val socket = sslContext.socketFactory.createSocket() as SSLSocket
             sslSocket = socket
 
             socket.connect(InetSocketAddress(device.hostAddress, device.remotePort), 6000)
-            socket.soTimeout = 10000
+            socket.soTimeout = 0 // Don't timeout continuous stream; keepalive ping manages it
             socket.startHandshake()
 
-            inputStream = socket.inputStream
-            outputStream = socket.outputStream
+            val inStream = socket.inputStream
+            val outStream = socket.outputStream
+            inputStream = inStream
+            outputStream = outStream
 
-            // Send Remote Configuration packet
-            sendConfigurationPacket()
+            // Phase 1: Handshake with Google TV Remote Service
+            // Read TV's initial remote_configure message
+            val tvConfRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvConf = GoogleTvProtobuf.parseRemoteMessage(tvConfRaw)
+            Log.d(TAG, "TV remote_configure received (hasConfigure=${tvConf.hasRemoteConfigure})")
+
+            // Send Client remote_configure (features = 622)
+            val clientConf = GoogleTvProtobuf.buildRemoteConfigure(622)
+            GoogleTvProtobuf.writeFramedMessage(outStream, clientConf)
+
+            // Read TV's remote_set_active
+            val tvActiveRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvActive = GoogleTvProtobuf.parseRemoteMessage(tvActiveRaw)
+            Log.d(TAG, "TV remote_set_active received (hasSetActive=${tvActive.hasRemoteSetActive})")
+
+            // Send Client remote_set_active
+            val clientActive = GoogleTvProtobuf.buildRemoteSetActive(622)
+            GoogleTvProtobuf.writeFramedMessage(outStream, clientActive)
+
+            // Read TV's remote_start
+            val tvStartRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvStart = GoogleTvProtobuf.parseRemoteMessage(tvStartRaw)
+            Log.d(TAG, "TV remote_start received (hasRemoteStart=${tvStart.hasRemoteStart})")
 
             _connectionState.value = RemoteConnectionState.Connected(device)
-            Log.d(TAG, "Connected to Google TV remote service on port ${device.remotePort}")
+            Log.i(TAG, "CONNECTED TO GOOGLE TV! Ready to transmit remote control keys.")
 
-            // Start listening loop and keep-alive ping loop
-            startKeepAlive(socket)
+            // Start continuous listener for pings and state updates
+            startContinuousListener(inStream, outStream, device)
 
         } catch (e: Exception) {
             Log.e(TAG, "Connection failed: ${e.message}", e)
-            _connectionState.value = RemoteConnectionState.Error("Could not connect to ${device.name}: ${e.localizedMessage}")
+            val errorText = when {
+                e.message?.contains("handshake_failure", true) == true || e.message?.contains("SSL", true) == true ->
+                    "Authentication rejected by TV. The TV may need to be paired again."
+                e.message?.contains("ECONNREFUSED", true) == true ->
+                    "Connection refused on port 6466. Please verify TV is turned ON."
+                else -> e.localizedMessage ?: "Connection failed"
+            }
+            _connectionState.value = RemoteConnectionState.Error(errorText)
             disconnect()
         }
     }
 
-    private fun sendConfigurationPacket() {
-        val out = outputStream ?: return
-        // Configure remote parameters: device info, model, supported features
-        val configPayload = byteArrayOf(
-            0x08, 0x01, // Remote version 1
-            0x12, 0x08, 0x47, 0x6F, 0x6F, 0x67, 0x6C, 0x65, 0x54, 0x56 // "GoogleTV"
-        )
-        val packet = buildMessagePacket(type = 0x01, payload = configPayload)
-        out.write(packet)
-        out.flush()
+    private fun startContinuousListener(inStream: InputStream, outStream: OutputStream, device: DiscoveredGoogleTv) {
+        receiveJob?.cancel()
+        receiveJob = scope.launch {
+            try {
+                while (isActive) {
+                    val rawMsg = GoogleTvProtobuf.readFramedMessage(inStream)
+                    val incoming = GoogleTvProtobuf.parseRemoteMessage(rawMsg)
+
+                    // Respond immediately to TV keepalive pings
+                    if (incoming.pingVal1 != null) {
+                        val pingResp = GoogleTvProtobuf.buildRemotePingResponse(incoming.pingVal1)
+                        synchronized(outStream) {
+                            GoogleTvProtobuf.writeFramedMessage(outStream, pingResp)
+                        }
+                    }
+
+                    if (incoming.imeCounter != null) imeCounter = incoming.imeCounter
+                    if (incoming.imeFieldCounter != null) imeFieldCounter = incoming.imeFieldCounter
+                }
+            } catch (e: Exception) {
+                if (isActive) {
+                    Log.w(TAG, "Remote connection stream ended: ${e.message}")
+                    _connectionState.value = RemoteConnectionState.Disconnected
+                }
+            }
+        }
     }
 
     /**
-     * Sends a Key event (Key Down + Key Up) to the Google TV.
+     * Sends a Key event (DPad, Home, Back, Volume, Power, etc.) to the Google TV.
      */
     suspend fun sendKey(key: TvKey) = withContext(Dispatchers.IO) {
         val out = outputStream ?: return@withContext
         try {
-            // Send Key Down (direction = 1)
-            val downPacket = buildKeyEventPacket(key.code, direction = 1)
-            out.write(downPacket)
-            out.flush()
-
-            delay(35) // Small tactile delay between press and release
-
-            // Send Key Up (direction = 2)
-            val upPacket = buildKeyEventPacket(key.code, direction = 2)
-            out.write(upPacket)
-            out.flush()
-
-            Log.d(TAG, "Sent key: ${key.label} (code ${key.code})")
+            // Direction 3 = SHORT press
+            val keyBytes = GoogleTvProtobuf.buildRemoteKeyInject(key.code, direction = 3)
+            synchronized(out) {
+                GoogleTvProtobuf.writeFramedMessage(out, keyBytes)
+            }
+            Log.d(TAG, "Sent key ${key.label} (code=${key.code}) to Google TV")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send key ${key.name}: ${e.message}")
         }
     }
 
     /**
-     * Sends typed text directly into Google TV's focused search/input box.
+     * Sends text string to the Google TV input field.
      */
     suspend fun sendText(text: String) = withContext(Dispatchers.IO) {
         val out = outputStream ?: return@withContext
         try {
-            val textBytes = text.toByteArray(Charsets.UTF_8)
-            val packet = buildMessagePacket(type = 0x07, payload = textBytes)
-            out.write(packet)
-            out.flush()
-            Log.d(TAG, "Sent IME text: $text")
+            val textBytes = GoogleTvProtobuf.buildRemoteImeBatchEdit(text, imeCounter, imeFieldCounter)
+            synchronized(out) {
+                GoogleTvProtobuf.writeFramedMessage(out, textBytes)
+            }
+            Log.d(TAG, "Sent text input to Google TV: $text")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send text: ${e.message}")
         }
     }
 
     /**
-     * Launches a specific app deep link (e.g., YouTube, Netflix, Prime Video).
+     * Deep-links directly to popular streaming apps on Google TV.
      */
     suspend fun launchApp(packageName: String) = withContext(Dispatchers.IO) {
         val out = outputStream ?: return@withContext
         try {
-            val payload = packageName.toByteArray(Charsets.UTF_8)
-            val packet = buildMessagePacket(type = 0x08, payload = payload)
-            out.write(packet)
-            out.flush()
-            Log.d(TAG, "Sent launch app: $packageName")
+            val appUrl = when (packageName) {
+                "com.google.android.youtube.tv", "youtube" -> "https://www.youtube.com"
+                "com.netflix.ninja", "netflix" -> "https://www.netflix.com/title"
+                "com.amazon.amazonvideo.livingroom", "prime" -> "https://app.primevideo.com"
+                "in.startv.hotstar", "hotstar" -> "https://www.hotstar.com"
+                else -> packageName
+            }
+            val appBytes = GoogleTvProtobuf.buildRemoteAppLink(appUrl)
+            synchronized(out) {
+                GoogleTvProtobuf.writeFramedMessage(out, appBytes)
+            }
+            Log.d(TAG, "Launched app via link $appUrl")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch app $packageName: ${e.message}")
         }
     }
 
-    private fun startKeepAlive(socket: SSLSocket) {
-        pingJob?.cancel()
-        pingJob = scope.launch {
-            val buffer = ByteArray(256)
-            while (isActive && !socket.isClosed) {
-                try {
-                    val input = inputStream ?: break
-                    if (input.available() > 0) {
-                        val count = input.read(buffer)
-                        if (count > 0 && buffer[2].toInt() == 0x05) { // Ping request from TV
-                            sendPingResponse()
-                        }
-                    }
-                    delay(3000)
-                } catch (e: Exception) {
-                    if (isActive) {
-                        Log.w(TAG, "Keep alive connection issue: ${e.message}")
-                    }
-                    break
-                }
-            }
-        }
-    }
-
-    private fun sendPingResponse() {
-        try {
-            val out = outputStream ?: return
-            val pingResponse = byteArrayOf(0x00, 0x02, 0x08, 0x06) // Ping response
-            out.write(pingResponse)
-            out.flush()
-        } catch (ignored: Exception) {}
-    }
-
-    private fun buildKeyEventPacket(keyCode: Int, direction: Int): ByteArray {
-        // Tag 0x04 for Key Event
-        val payload = byteArrayOf(
-            0x08, (keyCode and 0x7F).toByte(),
-            0x10, direction.toByte()
-        )
-        return buildMessagePacket(type = 0x04, payload = payload)
-    }
-
-    private fun buildMessagePacket(type: Byte, payload: ByteArray): ByteArray {
-        val length = payload.size + 2
-        val packet = ByteArray(length + 2)
-        packet[0] = (length shr 8).toByte()
-        packet[1] = (length and 0xFF).toByte()
-        packet[2] = 0x08
-        packet[3] = type
-        System.arraycopy(payload, 0, packet, 4, payload.size)
-        return packet
-    }
-
     fun disconnect() {
-        pingJob?.cancel()
-        pingJob = null
+        receiveJob?.cancel()
+        receiveJob = null
         try {
             inputStream?.close()
             outputStream?.close()
@@ -204,7 +195,8 @@ class GoogleTvRemoteEngine(private val context: Context) {
         inputStream = null
         outputStream = null
         sslSocket = null
-        _connectionState.value = RemoteConnectionState.Disconnected
-        connectedDevice = null
+        if (_connectionState.value !is RemoteConnectionState.Disconnected) {
+            _connectionState.value = RemoteConnectionState.Disconnected
+        }
     }
 }

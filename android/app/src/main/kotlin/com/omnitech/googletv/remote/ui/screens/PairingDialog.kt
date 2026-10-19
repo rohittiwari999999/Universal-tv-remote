@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,11 +33,13 @@ fun PairingDialog(
     device: DiscoveredGoogleTv,
     pairingState: PairingState,
     onSubmitPin: (String) -> Unit,
+    onRetryPairing: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var pinText by remember { mutableStateOf("") }
     val isVerifying = pairingState is PairingState.VerifyingPin
     val isConnecting = pairingState is PairingState.Connecting
+    val isAwaiting = pairingState is PairingState.AwaitingPin
     val errorMessage = (pairingState as? PairingState.Error)?.message
 
     Dialog(onDismissRequest = onDismiss) {
@@ -53,7 +56,7 @@ fun PairingDialog(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Top close button & TV Icon
+                // Top header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -68,9 +71,9 @@ fun PairingDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Pair Google TV",
+                            text = "Pair with ${device.name}",
                             color = GoogleTvTextPrimary,
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -84,16 +87,16 @@ fun PairingDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Simulated TV Screen showing Pairing Prompt illustration
+                // Simulated TV Screen Card
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(110.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(GoogleTvDark)
-                        .border(1.dp, GoogleTvBlue.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        .border(1.dp, GoogleTvBlue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -101,54 +104,84 @@ fun PairingDialog(
                             imageVector = Icons.Default.Tv,
                             contentDescription = null,
                             tint = GoogleTvBlue,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(36.dp)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Look at your ${device.name} screen",
+                            text = if (isConnecting) "Sending Pairing Request to TV..." else "Check TV Screen",
                             color = GoogleTvTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "A 4 or 6-digit PIN code is displayed",
+                            text = if (isConnecting)
+                                "Connecting to port 6467..."
+                            else
+                                "Google TV displays a 6-character code (e.g. 7D8A2C)",
                             color = GoogleTvTextSecondary,
-                            fontSize = 11.sp
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 if (isConnecting) {
                     CircularProgressIndicator(
                         color = GoogleTvBlue,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Establishing TLS Handshake (Port 6467)...",
+                        text = "Negotiating Google Polo Handshake...",
                         color = GoogleTvTextSecondary,
                         fontSize = 13.sp
                     )
+                } else if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = GoogleTvRed,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onRetryPairing,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(46.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Retry Pairing", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 } else {
                     Text(
-                        text = "Enter Pairing Code from TV",
+                        text = "Enter 6-Character Code from TV",
                         color = GoogleTvTextPrimary,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = pinText,
-                        onValueChange = {
-                            if (it.length <= 6) pinText = it.uppercase()
+                        onValueChange = { input ->
+                            // Accept hexadecimal alphanumeric characters up to 6 symbols
+                            val filtered = input.filter { it.isLetterOrDigit() }.take(6).uppercase()
+                            pinText = filtered
+                            if (filtered.length == 6) {
+                                onSubmitPin(filtered)
+                            }
                         },
                         placeholder = {
                             Text(
-                                "e.g. 4832 or A9B4",
-                                color = GoogleTvTextSecondary,
+                                "e.g. 7D8A2C",
+                                color = GoogleTvTextSecondary.copy(alpha = 0.5f),
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center
                             )
@@ -175,21 +208,11 @@ fun PairingDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = errorMessage,
-                            color = GoogleTvRed,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     Button(
                         onClick = { onSubmitPin(pinText) },
-                        enabled = pinText.length >= 4 && !isVerifying,
+                        enabled = pinText.length == 6 && !isVerifying,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = GoogleTvBlue,
                             disabledContainerColor = GoogleTvCardBorder
@@ -206,7 +229,7 @@ fun PairingDialog(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Verifying SHA-256 HMAC...", color = Color.White, fontSize = 14.sp)
+                            Text("Verifying SHA-256...", color = Color.White, fontSize = 14.sp)
                         } else {
                             Text(
                                 text = "Pair & Connect",

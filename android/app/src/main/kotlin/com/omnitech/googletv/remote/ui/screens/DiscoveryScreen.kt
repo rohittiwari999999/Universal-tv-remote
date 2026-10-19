@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,9 +21,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.ui.theme.*
 
@@ -30,11 +33,17 @@ import com.omnitech.googletv.remote.ui.theme.*
 fun DiscoveryScreen(
     devices: List<DiscoveredGoogleTv>,
     isScanning: Boolean,
+    errorMessage: String? = null,
     onStartScan: () -> Unit,
     onSelectDevice: (DiscoveredGoogleTv) -> Unit,
-    onAddManualIp: (String) -> Unit
+    onForcePairDevice: (DiscoveredGoogleTv) -> Unit,
+    onUnpairDevice: (DiscoveredGoogleTv) -> Unit,
+    onResetAllSettings: () -> Unit,
+    onAddManualIp: (String) -> Unit,
+    onDismissError: () -> Unit
 ) {
     var showManualDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -66,27 +75,81 @@ fun DiscoveryScreen(
                     )
                 }
                 Text(
-                    text = if (isScanning) "Searching Wi-Fi for Google TVs..." else "${devices.size} TV(s) found nearby",
+                    text = if (isScanning) "Searching Wi-Fi for Google TVs..." else "${devices.size} TV(s) available",
                     color = GoogleTvTextSecondary,
                     fontSize = 13.sp
                 )
             }
 
-            IconButton(
-                onClick = onStartScan,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(GoogleTvSurface)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Rescan",
-                    tint = GoogleTvBlue
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { showResetDialog = true },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(GoogleTvSurface)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteSweep,
+                        contentDescription = "Reset Settings",
+                        tint = GoogleTvTextSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onStartScan,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(GoogleTvSurface)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Rescan",
+                        tint = GoogleTvBlue
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // Connection Error Alert Banner
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = GoogleTvRed.copy(alpha = 0.15f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, GoogleTvRed.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = GoogleTvRed, modifier = Modifier.size(22.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Connection Notice",
+                            color = GoogleTvRed,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = errorMessage,
+                            color = GoogleTvTextPrimary,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                    IconButton(onClick = onDismissError, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = GoogleTvTextSecondary, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Scanning Radar Animation (When searching or zero devices found)
         if (devices.isEmpty()) {
@@ -103,17 +166,14 @@ fun DiscoveryScreen(
                     modifier = Modifier.padding(top = 180.dp)
                 ) {
                     Text(
-                        text = if (isScanning) "Scanning your Wi-Fi Network" else "No Google TVs found",
+                        text = if (isScanning) "Searching Local Wi-Fi..." else "No Google TVs found yet",
                         color = GoogleTvTextPrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = if (isScanning)
-                            "Looking for _androidtvremote2._tcp services...\nMake sure your phone and TV are on the same Wi-Fi."
-                        else
-                            "Turn on your Google TV / Chromecast and verify it's connected to Wi-Fi.",
+                        text = "1. Ensure Phone & TV are on the same Wi-Fi.\n2. Or connect directly using your TV's IP address.",
                         color = GoogleTvTextSecondary,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
@@ -127,40 +187,44 @@ fun DiscoveryScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Connect by IP Address", color = GoogleTvTextPrimary, fontSize = 14.sp)
+                        Text("Add TV by IP Address", color = GoogleTvTextPrimary, fontSize = 14.sp)
                     }
                 }
             }
         } else {
             // Discovered Devices List
-            Text(
-                text = "NEARBY GOOGLE TVs",
-                color = GoogleTvTextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "AVAILABLE GOOGLE TVs",
+                    color = GoogleTvTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                TextButton(onClick = { showManualDialog = true }, contentPadding = PaddingValues(0.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add IP", color = GoogleTvBlue, fontSize = 13.sp)
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(devices) { tv ->
-                    DeviceCard(device = tv, onClick = { onSelectDevice(tv) })
+                    DeviceCard(
+                        device = tv,
+                        onClick = { onSelectDevice(tv) },
+                        onForcePair = { onForcePairDevice(tv) },
+                        onUnpair = { onUnpairDevice(tv) }
+                    )
                 }
-            }
-
-            // Bottom Manual Connect Link
-            TextButton(
-                onClick = { showManualDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Icon(Icons.Default.SettingsEthernet, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("TV not showing? Enter IP Manually", color = GoogleTvBlue, fontSize = 14.sp)
             }
         }
     }
@@ -174,89 +238,179 @@ fun DiscoveryScreen(
             }
         )
     }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Reset All TV Pairings?") },
+            text = {
+                Text("This will clear all saved pairings and reset your client certificate credentials. You can pair afresh with your TV.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showResetDialog = false
+                        onResetAllSettings()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoogleTvRed)
+                ) {
+                    Text("Reset All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = GoogleTvSurface
+        )
+    }
 }
 
 @Composable
-fun DeviceCard(device: DiscoveredGoogleTv, onClick: () -> Unit) {
+fun DeviceCard(
+    device: DiscoveredGoogleTv,
+    onClick: () -> Unit,
+    onForcePair: () -> Unit,
+    onUnpair: () -> Unit
+) {
+    var expandedMenu by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, GoogleTvCardBorder, RoundedCornerShape(16.dp))
-            .clickable { onClick() },
+            .border(1.dp, GoogleTvCardBorder, RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(containerColor = GoogleTvSurface)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(GoogleTvBlue.copy(alpha = 0.2f), GoogleTvBlue.copy(alpha = 0.05f))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Tv,
-                    contentDescription = null,
-                    tint = GoogleTvBlue,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = device.name,
-                        color = GoogleTvTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(GoogleTvBlue.copy(alpha = 0.2f), GoogleTvBlue.copy(alpha = 0.05f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = GoogleTvBlue,
+                        modifier = Modifier.size(24.dp)
                     )
-                    if (device.isPaired) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "PAIRED",
-                            color = GoogleTvGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GoogleTvGreen.copy(alpha = 0.15f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = device.name,
+                            color = GoogleTvTextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (device.isPaired) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "PAIRED",
+                                color = GoogleTvGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(GoogleTvGreen.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "${device.model} • ${device.hostAddress}",
                         color = GoogleTvTextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
+                }
+
+                Box {
+                    IconButton(onClick = { expandedMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = GoogleTvTextSecondary)
+                    }
+                    DropdownMenu(
+                        expanded = expandedMenu,
+                        onDismissRequest = { expandedMenu = false },
+                        modifier = Modifier.background(GoogleTvSurface)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Pair Again (New PIN)", color = GoogleTvTextPrimary) },
+                            onClick = {
+                                expandedMenu = false
+                                onForcePair()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.LockReset, contentDescription = null, tint = GoogleTvBlue)
+                            }
+                        )
+                        if (device.isPaired || device.id.startsWith("manual_")) {
+                            DropdownMenuItem(
+                                text = { Text("Unpair / Remove", color = GoogleTvRed) },
+                                onClick = {
+                                    expandedMenu = false
+                                    onUnpair()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = GoogleTvRed)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
-            Button(
-                onClick = onClick,
-                colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = if (device.isPaired) "Connect" else "Pair",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (device.isPaired) {
+                    Button(
+                        onClick = onClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Connect Remote", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onForcePair,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(40.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder)
+                    ) {
+                        Icon(Icons.Default.LockReset, contentDescription = null, tint = GoogleTvTextSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Re-pair", color = GoogleTvTextSecondary, fontSize = 12.sp)
+                    }
+                } else {
+                    Button(
+                        onClick = onForcePair,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Pair with TV (Get PIN on Screen)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -298,12 +452,12 @@ fun RadarAnimation(isScanning: Boolean) {
             modifier = Modifier
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(GoogleTvCard)
+                .background(GoogleTvSurface)
                 .border(2.dp, GoogleTvBlue, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Cast,
+                imageVector = Icons.Default.Tv,
                 contentDescription = null,
                 tint = GoogleTvBlue,
                 modifier = Modifier.size(36.dp)
@@ -316,48 +470,71 @@ fun RadarAnimation(isScanning: Boolean) {
 fun ManualIpDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var ipText by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GoogleTvSurface,
-        title = {
-            Text("Enter Google TV IP Address", color = GoogleTvTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.dp, GoogleTvCardBorder, RoundedCornerShape(20.dp)),
+            colors = CardDefaults.cardColors(containerColor = GoogleTvSurface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
                 Text(
-                    "You can find this on your Google TV: Settings > Network & Internet > Connected Wi-Fi > IP Address.",
+                    text = "Connect by TV IP Address",
+                    color = GoogleTvTextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Find your TV IP address in TV Settings > Network & Internet > Wi-Fi > Status.",
                     color = GoogleTvTextSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = ipText,
-                    onValueChange = { ipText = it },
+                    onValueChange = { ipText = it.trim() },
                     placeholder = { Text("e.g. 192.168.1.105", color = GoogleTvTextSecondary) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GoogleTvTextPrimary,
-                        unfocusedTextColor = GoogleTvTextPrimary,
                         focusedBorderColor = GoogleTvBlue,
-                        unfocusedBorderColor = GoogleTvCardBorder
+                        unfocusedBorderColor = GoogleTvCardBorder,
+                        focusedContainerColor = GoogleTvDark,
+                        unfocusedContainerColor = GoogleTvDark,
+                        focusedTextColor = GoogleTvTextPrimary,
+                        unfocusedTextColor = GoogleTvTextPrimary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (ipText.isNotBlank()) onConfirm(ipText.trim()) },
-                colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue)
-            ) {
-                Text("Search & Connect", color = Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = GoogleTvTextSecondary)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = GoogleTvTextSecondary)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirm(ipText) },
+                        enabled = ipText.length >= 7,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Add TV", color = Color.White)
+                    }
+                }
             }
         }
-    )
+    }
 }
