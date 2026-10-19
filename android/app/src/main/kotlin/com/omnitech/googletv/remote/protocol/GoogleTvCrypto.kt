@@ -1,15 +1,13 @@
 package com.omnitech.googletv.remote.protocol
 
 import android.content.Context
-import android.util.Base64
-import java.io.ByteArrayInputStream
 import java.math.BigInteger
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.security.cert.CertificateFactory
+import java.security.Security
 import java.security.cert.X509Certificate
 import java.util.Date
 import javax.net.ssl.KeyManagerFactory
@@ -19,6 +17,7 @@ import javax.net.ssl.X509TrustManager
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 
 /**
@@ -28,16 +27,27 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 object GoogleTvCrypto {
 
     private const val KEY_ALIAS = "google_tv_remote_client_key"
-    private const val PREFS_NAME = "google_tv_crypto_prefs"
-    private const val PREF_CLIENT_CERT = "client_cert_pem"
-    private const val PREF_PRIVATE_KEY = "private_key_pem"
+
+    init {
+        // Ensure BouncyCastle provider is registered for cryptographic signing and certificate conversion
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(BouncyCastleProvider())
+        }
+    }
+
+    @Volatile
+    private var cachedKeyPair: KeyPair? = null
+
+    @Volatile
+    private var cachedCertificate: X509Certificate? = null
 
     /**
      * Generates or retrieves an existing self-signed X.509 client certificate and keypair.
      */
+    @Synchronized
     fun getOrCreateSslContext(context: Context): SSLContext {
-        val keyPair = getOrCreateKeyPair()
-        val cert = getOrCreateCertificate(keyPair)
+        val keyPair = cachedKeyPair ?: getOrCreateKeyPair().also { cachedKeyPair = it }
+        val cert = cachedCertificate ?: getOrCreateCertificate(keyPair).also { cachedCertificate = it }
 
         val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
             load(null, null)
@@ -58,6 +68,12 @@ object GoogleTvCrypto {
         val sslContext = SSLContext.getInstance("TLSv1.2")
         sslContext.init(kmf.keyManagers, trustAllCerts, SecureRandom())
         return sslContext
+    }
+
+    @Synchronized
+    fun getClientCertificate(): X509Certificate {
+        val keyPair = cachedKeyPair ?: getOrCreateKeyPair().also { cachedKeyPair = it }
+        return cachedCertificate ?: getOrCreateCertificate(keyPair).also { cachedCertificate = it }
     }
 
     private fun getOrCreateKeyPair(): KeyPair {
@@ -83,9 +99,13 @@ object GoogleTvCrypto {
             keyPair.public
         )
 
-        val signer = JcaContentSignerBuilder("SHA256withRSA").build(keyPair.private)
+        val signer = JcaContentSignerBuilder("SHA256withRSA")
+            .setProvider(BouncyCastleProvider())
+            .build(keyPair.private)
         val certHolder = builder.build(signer)
-        return JcaX509CertificateConverter().getCertificate(certHolder)
+        return JcaX509CertificateConverter()
+            .setProvider(BouncyCastleProvider())
+            .getCertificate(certHolder)
     }
 
     /**

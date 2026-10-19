@@ -65,9 +65,15 @@ class GoogleTvPairingEngine(private val context: Context) {
                 serverCertBytes = (serverCerts[0] as X509Certificate).encoded
             }
 
-            val localCerts = socket.session.localCertificates
-            if (localCerts != null && localCerts.isNotEmpty() && localCerts[0] is X509Certificate) {
-                clientCertBytes = (localCerts[0] as X509Certificate).encoded
+            clientCertBytes = try {
+                val localCerts = socket.session.localCertificates
+                if (localCerts != null && localCerts.isNotEmpty() && localCerts[0] is X509Certificate) {
+                    (localCerts[0] as X509Certificate).encoded
+                } else {
+                    GoogleTvCrypto.getClientCertificate().encoded
+                }
+            } catch (ignored: Exception) {
+                GoogleTvCrypto.getClientCertificate().encoded
             }
 
             inputStream = socket.inputStream
