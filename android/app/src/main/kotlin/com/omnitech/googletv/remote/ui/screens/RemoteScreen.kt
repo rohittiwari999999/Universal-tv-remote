@@ -1,7 +1,9 @@
 package com.omnitech.googletv.remote.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -259,7 +261,7 @@ fun RemoteScreen(
             Card(
                 colors = CardDefaults.cardColors(containerColor = GoogleTvSurface),
                 shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder)
+                border = BorderStroke(1.dp, GoogleTvCardBorder)
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -279,7 +281,7 @@ fun RemoteScreen(
             Card(
                 colors = CardDefaults.cardColors(containerColor = GoogleTvSurface),
                 shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder)
+                border = BorderStroke(1.dp, GoogleTvCardBorder)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -464,7 +466,7 @@ fun KeyboardControl(textInput: String, onTextChange: (String) -> Unit, onSend: (
             .height(230.dp),
         colors = CardDefaults.cardColors(containerColor = GoogleTvSurface),
         shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder)
+        border = BorderStroke(1.dp, GoogleTvCardBorder)
     ) {
         Column(
             modifier = Modifier
