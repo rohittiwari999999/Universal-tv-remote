@@ -183,11 +183,9 @@ object GoogleTvProtobuf {
 
     fun buildRemoteConfigure(features: Int = 622): ByteArray {
         val devInfo = ProtoWriter().apply {
-            writeString(1, "Android")
-            writeString(2, "Google")
             writeInt32(3, 1)
             writeString(4, "1")
-            writeString(5, "androidtv-remote")
+            writeString(5, "atvremote")
             writeString(6, "1.0.0")
         }.toByteArray()
 

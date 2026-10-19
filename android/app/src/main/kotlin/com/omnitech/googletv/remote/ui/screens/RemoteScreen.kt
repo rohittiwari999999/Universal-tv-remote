@@ -38,8 +38,6 @@ fun RemoteScreen(
     onSendKey: (TvKey) -> Unit,
     onSendText: (String) -> Unit,
     onLaunchApp: (String) -> Unit,
-    onReconnect: () -> Unit = {},
-    onRePair: () -> Unit = {},
     onDisconnect: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -51,10 +49,6 @@ fun RemoteScreen(
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         onSendKey(key)
     }
-
-    val isConnected = connectionState is RemoteConnectionState.Connected
-    val isConnecting = connectionState is RemoteConnectionState.Connecting
-    val errorMessage = (connectionState as? RemoteConnectionState.Error)?.message
 
     Column(
         modifier = Modifier
@@ -76,27 +70,13 @@ fun RemoteScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                if (isConnecting) {
-                    CircularProgressIndicator(
-                        color = GoogleTvBlue,
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when {
-                                    isConnected -> GoogleTvGreen
-                                    errorMessage != null -> GoogleTvRed
-                                    else -> GoogleTvYellow
-                                }
-                            )
-                    )
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(GoogleTvGreen)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -106,13 +86,8 @@ fun RemoteScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = when {
-                            isConnected -> "Connected • ${device.hostAddress}"
-                            isConnecting -> "Connecting to TV • ${device.hostAddress}..."
-                            errorMessage != null -> "Disconnected • ${device.hostAddress}"
-                            else -> "Idle • ${device.hostAddress}"
-                        },
-                        color = if (isConnected) GoogleTvGreen else GoogleTvTextSecondary,
+                        text = "Connected • ${device.hostAddress}",
+                        color = GoogleTvTextSecondary,
                         fontSize = 12.sp
                     )
                 }
@@ -127,62 +102,10 @@ fun RemoteScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Exit Remote",
+                    contentDescription = "Disconnect",
                     tint = GoogleTvTextSecondary,
                     modifier = Modifier.size(16.dp)
                 )
-            }
-        }
-
-        // Connection Error Alert & Recovery Actions
-        if (!errorMessage.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = GoogleTvRed.copy(alpha = 0.15f)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, GoogleTvRed.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = GoogleTvRed, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = errorMessage,
-                            color = GoogleTvTextPrimary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onReconnect,
-                            colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(36.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Reconnect", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        OutlinedButton(
-                            onClick = onRePair,
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder),
-                            modifier = Modifier.weight(1f).height(36.dp)
-                        ) {
-                            Icon(Icons.Default.LockReset, contentDescription = null, tint = GoogleTvTextSecondary, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Pair Again", color = GoogleTvTextPrimary, fontSize = 12.sp)
-                        }
-                    }
-                }
             }
         }
 

@@ -16,7 +16,7 @@ import javax.net.ssl.SSLSocket
 
 /**
  * Communicates with Google TV over the authentic Remote Control Command Channel (Port 6466).
- * Reactive, non-blocking TLS implementation ensuring instant UI transition to RemoteScreen.
+ * Sends real KeyEvents, Ping responses, and App deep link launches using Google TV Protobuf framing.
  */
 class GoogleTvRemoteEngine(private val context: Context) {
 
@@ -42,14 +42,13 @@ class GoogleTvRemoteEngine(private val context: Context) {
         _connectionState.value = RemoteConnectionState.Connecting(device)
 
         try {
-            Log.d(TAG, "Connecting TLS socket to ${device.hostAddress}:${device.remotePort} (${device.name})")
+            Log.d(TAG, "Connecting to Google TV remote command channel at ${device.hostAddress}:${device.remotePort}")
             val sslContext = GoogleTvCrypto.getOrCreateSslContext(context)
             val socket = sslContext.socketFactory.createSocket() as SSLSocket
             sslSocket = socket
 
-            // 5-second socket connection timeout
-            socket.connect(InetSocketAddress(device.hostAddress, device.remotePort), 5000)
-            socket.soTimeout = 0 // Don't block forever with soTimeout; receive loop will listen
+            socket.connect(InetSocketAddress(device.hostAddress, device.remotePort), 6000)
+            socket.soTimeout = 0 // Don't timeout continuous stream; keepalive ping manages it
             socket.startHandshake()
 
             val inStream = socket.inputStream
@@ -57,23 +56,44 @@ class GoogleTvRemoteEngine(private val context: Context) {
             inputStream = inStream
             outputStream = outStream
 
-            // TLS handshake is successful! Immediately transition UI to Connected RemoteScreen!
-            Log.i(TAG, "CONNECTED TO GOOGLE TV on port ${device.remotePort}! RemoteScreen ready.")
-            _connectionState.value = RemoteConnectionState.Connected(device)
+            // Phase 1: Handshake with Google TV Remote Service
+            // Read TV's initial remote_configure message
+            val tvConfRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvConf = GoogleTvProtobuf.parseRemoteMessage(tvConfRaw)
+            Log.d(TAG, "TV remote_configure received (hasConfigure=${tvConf.hasRemoteConfigure})")
 
-            // Start asynchronous continuous listener for keepalives and TV messages
+            // Send Client remote_configure (features = 622)
+            val clientConf = GoogleTvProtobuf.buildRemoteConfigure(622)
+            GoogleTvProtobuf.writeFramedMessage(outStream, clientConf)
+
+            // Read TV's remote_set_active
+            val tvActiveRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvActive = GoogleTvProtobuf.parseRemoteMessage(tvActiveRaw)
+            Log.d(TAG, "TV remote_set_active received (hasSetActive=${tvActive.hasRemoteSetActive})")
+
+            // Send Client remote_set_active
+            val clientActive = GoogleTvProtobuf.buildRemoteSetActive(622)
+            GoogleTvProtobuf.writeFramedMessage(outStream, clientActive)
+
+            // Read TV's remote_start
+            val tvStartRaw = GoogleTvProtobuf.readFramedMessage(inStream)
+            val tvStart = GoogleTvProtobuf.parseRemoteMessage(tvStartRaw)
+            Log.d(TAG, "TV remote_start received (hasRemoteStart=${tvStart.hasRemoteStart})")
+
+            _connectionState.value = RemoteConnectionState.Connected(device)
+            Log.i(TAG, "CONNECTED TO GOOGLE TV! Ready to transmit remote control keys.")
+
+            // Start continuous listener for pings and state updates
             startContinuousListener(inStream, outStream, device)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Connection to ${device.hostAddress}:${device.remotePort} failed: ${e.message}", e)
+            Log.e(TAG, "Connection failed: ${e.message}", e)
             val errorText = when {
                 e.message?.contains("handshake_failure", true) == true || e.message?.contains("SSL", true) == true ->
-                    "Authentication rejected by TV. Please tap 'Re-pair' to enter the code shown on your TV screen."
+                    "Authentication rejected by TV. The TV may need to be paired again."
                 e.message?.contains("ECONNREFUSED", true) == true ->
-                    "Connection refused on port ${device.remotePort}. Ensure TV is ON and connected to Wi-Fi."
-                e.message?.contains("ETIMEDOUT", true) == true ->
-                    "Connection timed out. Check your TV's IP address (${device.hostAddress})."
-                else -> e.localizedMessage ?: "Could not connect to ${device.name}"
+                    "Connection refused on port 6466. Please verify TV is turned ON."
+                else -> e.localizedMessage ?: "Connection failed"
             }
             _connectionState.value = RemoteConnectionState.Error(errorText)
             disconnect()
@@ -83,41 +103,10 @@ class GoogleTvRemoteEngine(private val context: Context) {
     private fun startContinuousListener(inStream: InputStream, outStream: OutputStream, device: DiscoveredGoogleTv) {
         receiveJob?.cancel()
         receiveJob = scope.launch {
-            // Initiator fallback: if TV doesn't send remote_configure within 800ms, send client configure
-            val initiatorJob = launch {
-                delay(800)
-                try {
-                    Log.d(TAG, "Sending proactive client remoteConfigure(622)")
-                    val conf = GoogleTvProtobuf.buildRemoteConfigure(622)
-                    synchronized(outStream) {
-                        GoogleTvProtobuf.writeFramedMessage(outStream, conf)
-                    }
-                } catch (ignored: Exception) {}
-            }
-
             try {
                 while (isActive) {
                     val rawMsg = GoogleTvProtobuf.readFramedMessage(inStream)
-                    initiatorJob.cancel()
                     val incoming = GoogleTvProtobuf.parseRemoteMessage(rawMsg)
-
-                    // If TV sends remote_configure, respond with our client configuration
-                    if (incoming.hasRemoteConfigure) {
-                        Log.d(TAG, "TV sent remote_configure -> replying with client configure")
-                        val conf = GoogleTvProtobuf.buildRemoteConfigure(622)
-                        synchronized(outStream) {
-                            GoogleTvProtobuf.writeFramedMessage(outStream, conf)
-                        }
-                    }
-
-                    // If TV sends remote_set_active, respond with active=622
-                    if (incoming.hasRemoteSetActive) {
-                        Log.d(TAG, "TV sent remote_set_active -> replying with active=622")
-                        val act = GoogleTvProtobuf.buildRemoteSetActive(622)
-                        synchronized(outStream) {
-                            GoogleTvProtobuf.writeFramedMessage(outStream, act)
-                        }
-                    }
 
                     // Respond immediately to TV keepalive pings
                     if (incoming.pingVal1 != null) {
@@ -127,19 +116,13 @@ class GoogleTvRemoteEngine(private val context: Context) {
                         }
                     }
 
-                    if (incoming.hasRemoteStart) {
-                        Log.i(TAG, "TV confirmed remote_start: ready for all commands")
-                        _connectionState.value = RemoteConnectionState.Connected(device)
-                    }
-
                     if (incoming.imeCounter != null) imeCounter = incoming.imeCounter
                     if (incoming.imeFieldCounter != null) imeFieldCounter = incoming.imeFieldCounter
                 }
             } catch (e: Exception) {
-                initiatorJob.cancel()
                 if (isActive) {
                     Log.w(TAG, "Remote connection stream ended: ${e.message}")
-                    _connectionState.value = RemoteConnectionState.Error("Disconnected from TV: ${e.message ?: "Connection reset"}")
+                    _connectionState.value = RemoteConnectionState.Disconnected
                 }
             }
         }

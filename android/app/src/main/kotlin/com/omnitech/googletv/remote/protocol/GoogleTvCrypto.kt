@@ -159,11 +159,11 @@ object GoogleTvCrypto {
     private fun generateCertificate(keyPair: KeyPair): X509Certificate {
         val now = System.currentTimeMillis()
         val startDate = Date(now - 24 * 60 * 60 * 1000L) // yesterday
-        val endDate = Date(now + 10L * 365 * 24 * 60 * 60 * 1000L) // 10 years
+        val endDate = Date(now + 15L * 365 * 24 * 60 * 60 * 1000L) // 15 years
 
         // Official CN used by Google TV Remote
         val subject = X500Name("CN=atvremote")
-        val serial = BigInteger.valueOf(1000L)
+        val serial = BigInteger(64, SecureRandom())
 
         val builder = JcaX509v3CertificateBuilder(
             subject,
@@ -173,27 +173,6 @@ object GoogleTvCrypto {
             subject,
             keyPair.public
         )
-
-        // Add CA basic constraints and Subject Alternative Name matching official Android TV Remote
-        try {
-            builder.addExtension(
-                org.bouncycastle.asn1.x509.Extension.basicConstraints,
-                false,
-                org.bouncycastle.asn1.x509.BasicConstraints(true)
-            )
-            builder.addExtension(
-                org.bouncycastle.asn1.x509.Extension.subjectAlternativeName,
-                false,
-                org.bouncycastle.asn1.x509.GeneralNames(
-                    org.bouncycastle.asn1.x509.GeneralName(
-                        org.bouncycastle.asn1.x509.GeneralName.dNSName,
-                        "atvremote"
-                    )
-                )
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Notice adding cert extensions: ${e.message}")
-        }
 
         val signer = JcaContentSignerBuilder("SHA256withRSA")
             .setProvider(BouncyCastleProvider())
