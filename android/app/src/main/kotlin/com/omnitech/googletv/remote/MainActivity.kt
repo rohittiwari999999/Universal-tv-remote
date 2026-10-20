@@ -83,9 +83,23 @@ class MainActivity : ComponentActivity() {
                         val pairingState by pairingEngine.pairingState.collectAsState()
                         val connectionState by remoteEngine.connectionState.collectAsState()
 
-                        var selectedTv by remember { mutableStateOf<DiscoveredGoogleTv?>(null) }
+                        val lastPairedDevice = remember { discoveryManager.getLastPairedDevice() }
+                        var selectedTv by remember { mutableStateOf<DiscoveredGoogleTv?>(lastPairedDevice) }
+                        var autoConnectTriggered by remember { mutableStateOf(false) }
+                        var userNavigatedToDiscovery by remember { mutableStateOf(false) }
                         var showPairingDialog by remember { mutableStateOf(false) }
                         var connectionErrorMessage by remember { mutableStateOf<String?>(null) }
+
+                        // Automatically connect to saved paired TV on launch once splash screen finishes
+                        LaunchedEffect(showSplashScreen) {
+                            if (!showSplashScreen && selectedTv != null && !autoConnectTriggered && !userNavigatedToDiscovery) {
+                                autoConnectTriggered = true
+                                Log.i(TAG, "Auto-connecting to saved paired TV: ${selectedTv?.name} (${selectedTv?.hostAddress})")
+                                lifecycleScope.launch(crashHandler) {
+                                    remoteEngine.connect(selectedTv!!)
+                                }
+                            }
+                        }
 
                         // Surface connection errors back to the user
                         LaunchedEffect(connectionState) {
@@ -100,9 +114,10 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(pairingState) {
                             if (pairingState is PairingState.Paired) {
                                 val pairedDevice = (pairingState as PairingState.Paired).device
-                                discoveryManager.markDevicePaired(pairedDevice.id)
+                                discoveryManager.markDevicePaired(pairedDevice)
                                 showPairingDialog = false
                                 selectedTv = pairedDevice
+                                userNavigatedToDiscovery = false
                                 pairingEngine.reset()
                                 lifecycleScope.launch(crashHandler) {
                                     remoteEngine.connect(pairedDevice)
@@ -110,11 +125,22 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Resolve currently active connected device
-                        val activeConnectedDevice = (connectionState as? RemoteConnectionState.Connected)?.device ?: selectedTv
+                        // Resolve currently active connected or target device
+                        val activeConnectedDevice = (connectionState as? RemoteConnectionState.Connected)?.device
+                            ?: (connectionState as? RemoteConnectionState.Connecting)?.device
+                            ?: selectedTv
 
-                        if (connectionState is RemoteConnectionState.Connected && activeConnectedDevice != null) {
-                            // Main Remote Control Screen
+                        // Direct automatic Remote screen if user has a saved paired device and hasn't explicitly tapped close
+                        val shouldShowRemote = !userNavigatedToDiscovery && activeConnectedDevice != null && (
+                            connectionState is RemoteConnectionState.Connected ||
+                            connectionState is RemoteConnectionState.Connecting ||
+                            connectionState is RemoteConnectionState.Error ||
+                            connectionState is RemoteConnectionState.Disconnected ||
+                            activeConnectedDevice.isPaired
+                        )
+
+                        if (shouldShowRemote && activeConnectedDevice != null) {
+                            // Main Remote Control Screen (Direct auto-entry, no need to tap connect remote)
                             RemoteScreen(
                                 device = activeConnectedDevice,
                                 connectionState = connectionState,
@@ -133,8 +159,23 @@ class MainActivity : ComponentActivity() {
                                         remoteEngine.launchApp(packageName)
                                     }
                                 },
+                                onReconnect = {
+                                    lifecycleScope.launch(crashHandler) {
+                                        remoteEngine.connect(activeConnectedDevice)
+                                    }
+                                },
+                                onRePair = {
+                                    discoveryManager.unpairDevice(activeConnectedDevice.id)
+                                    selectedTv = activeConnectedDevice
+                                    showPairingDialog = true
+                                    lifecycleScope.launch(crashHandler) {
+                                        pairingEngine.startPairing(activeConnectedDevice)
+                                    }
+                                },
                                 onDisconnect = {
+                                    // User explicitly tapped close (X) to pick/scan for another TV
                                     remoteEngine.disconnect()
+                                    userNavigatedToDiscovery = true
                                     selectedTv = null
                                     discoveryManager.startDiscovery()
                                 }
@@ -152,8 +193,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSelectDevice = { tv ->
                                     selectedTv = tv
+                                    userNavigatedToDiscovery = false
                                     connectionErrorMessage = null
                                     if (tv.isPaired) {
+                                        discoveryManager.saveLastPairedDevice(tv)
                                         lifecycleScope.launch(crashHandler) {
                                             remoteEngine.connect(tv)
                                         }
@@ -166,8 +209,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onConnectDirectly = { tv ->
                                     selectedTv = tv
+                                    userNavigatedToDiscovery = false
                                     connectionErrorMessage = null
                                     if (tv.isPaired) {
+                                        discoveryManager.saveLastPairedDevice(tv)
                                         lifecycleScope.launch(crashHandler) {
                                             remoteEngine.connect(tv)
                                         }

@@ -48,10 +48,17 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         const val SERVICE_TYPE_GOOGLE_TV = "_androidtvremote2._tcp."
         private const val PREFS_NAME = "google_tv_paired_devices"
         private const val MANUAL_IPS_KEY = "manual_ips"
+        private const val KEY_LAST_PAIRED_ID = "last_paired_id"
+        private const val KEY_LAST_PAIRED_NAME = "last_paired_name"
+        private const val KEY_LAST_PAIRED_HOST = "last_paired_host"
+        private const val KEY_LAST_PAIRED_REMOTE_PORT = "last_paired_remote_port"
+        private const val KEY_LAST_PAIRED_PAIRING_PORT = "last_paired_pairing_port"
+        private const val KEY_LAST_PAIRED_MODEL = "last_paired_model"
     }
 
     init {
         loadSavedManualDevices()
+        loadSavedPairedDevice()
     }
 
     /**
@@ -332,9 +339,88 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         return prefs.getBoolean("paired_$deviceId", false)
     }
 
+    fun saveLastPairedDevice(device: DiscoveredGoogleTv) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(KEY_LAST_PAIRED_ID, device.id)
+                .putString(KEY_LAST_PAIRED_NAME, device.name)
+                .putString(KEY_LAST_PAIRED_HOST, device.hostAddress)
+                .putInt(KEY_LAST_PAIRED_REMOTE_PORT, device.remotePort)
+                .putInt(KEY_LAST_PAIRED_PAIRING_PORT, device.pairingPort)
+                .putString(KEY_LAST_PAIRED_MODEL, device.model)
+                .putBoolean("paired_${device.id}", true)
+                .apply()
+            Log.d(TAG, "Saved last paired device: ${device.name} (${device.hostAddress})")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error saving last paired device: ${e.message}")
+        }
+    }
+
+    fun getLastPairedDevice(): DiscoveredGoogleTv? {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val id = prefs.getString(KEY_LAST_PAIRED_ID, null) ?: return null
+            val host = prefs.getString(KEY_LAST_PAIRED_HOST, null) ?: return null
+            val name = prefs.getString(KEY_LAST_PAIRED_NAME, "Google TV") ?: "Google TV"
+            val remotePort = prefs.getInt(KEY_LAST_PAIRED_REMOTE_PORT, 6466)
+            val pairingPort = prefs.getInt(KEY_LAST_PAIRED_PAIRING_PORT, 6467)
+            val model = prefs.getString(KEY_LAST_PAIRED_MODEL, "Google TV / Android TV") ?: "Google TV"
+
+            DiscoveredGoogleTv(
+                id = id,
+                name = name,
+                hostAddress = host,
+                pairingPort = pairingPort,
+                remotePort = remotePort,
+                model = model,
+                signalStrengthDbm = -35,
+                isPaired = true
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Error getting last paired device: ${e.message}")
+            null
+        }
+    }
+
+    fun clearLastPairedDevice() {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .remove(KEY_LAST_PAIRED_ID)
+                .remove(KEY_LAST_PAIRED_NAME)
+                .remove(KEY_LAST_PAIRED_HOST)
+                .remove(KEY_LAST_PAIRED_REMOTE_PORT)
+                .remove(KEY_LAST_PAIRED_PAIRING_PORT)
+                .remove(KEY_LAST_PAIRED_MODEL)
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error clearing last paired device: ${e.message}")
+        }
+    }
+
+    private fun loadSavedPairedDevice() {
+        val lastDevice = getLastPairedDevice()
+        if (lastDevice != null) {
+            addOrUpdateDevice(lastDevice)
+        }
+    }
+
+    fun markDevicePaired(device: DiscoveredGoogleTv) {
+        saveLastPairedDevice(device)
+        val current = _devices.value.map {
+            if (it.id == device.id || it.hostAddress == device.hostAddress) it.copy(isPaired = true) else it
+        }
+        _devices.value = current
+    }
+
     fun markDevicePaired(deviceId: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean("paired_$deviceId", true).apply()
+        val found = _devices.value.find { it.id == deviceId }
+        if (found != null) {
+            saveLastPairedDevice(found)
+        }
         val current = _devices.value.map {
             if (it.id == deviceId) it.copy(isPaired = true) else it
         }
@@ -344,6 +430,10 @@ class GoogleTvDiscoveryManager(private val context: Context) {
     fun unpairDevice(deviceId: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().remove("paired_$deviceId").apply()
+        val lastPaired = getLastPairedDevice()
+        if (lastPaired?.id == deviceId) {
+            clearLastPairedDevice()
+        }
         val current = _devices.value.map {
             if (it.id == deviceId) it.copy(isPaired = false) else it
         }

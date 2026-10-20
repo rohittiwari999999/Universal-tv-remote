@@ -48,7 +48,14 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   // Discovery State
   const [isScanning, setIsScanning] = useState(true);
   const [devices, setDevices] = useState<DiscoveredTvItem[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<DiscoveredTvItem | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<DiscoveredTvItem | null>(() => {
+    try {
+      const saved = localStorage.getItem('last_paired_tv');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Pairing State
   const [showPairingModal, setShowPairingModal] = useState(false);
@@ -56,8 +63,14 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
 
-  // Connected Remote State
-  const [isConnected, setIsConnected] = useState(false);
+  // Connected Remote State (Direct auto-entry if previously paired)
+  const [isConnected, setIsConnected] = useState<boolean>(() => {
+    try {
+      return Boolean(localStorage.getItem('last_paired_tv'));
+    } catch {
+      return false;
+    }
+  });
   const [remoteMode, setRemoteMode] = useState<'dpad' | 'touchpad' | 'keyboard'>('dpad');
   const [inputText, setInputText] = useState('');
   const [showManualIpModal, setShowManualIpModal] = useState(false);
@@ -121,6 +134,11 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     if (device.isPaired) {
       // Already authenticated, directly connect
       setIsConnected(true);
+      try {
+        localStorage.setItem('last_paired_tv', JSON.stringify({ ...device, isPaired: true }));
+      } catch (e) {
+        console.warn('Could not save paired tv', e);
+      }
       onTvAction(`Connected to ${device.name} (${device.hostAddress}:6466)`);
     } else {
       // Initiate TLS Handshake on Port 6467
@@ -149,6 +167,14 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
         setIsConnected(true);
         remoteSound.pairingSuccess();
 
+        if (selectedDevice) {
+          try {
+            localStorage.setItem('last_paired_tv', JSON.stringify({ ...selectedDevice, isPaired: true }));
+          } catch (e) {
+            console.warn('Could not save paired tv', e);
+          }
+        }
+
         // Update device in list as permanently paired
         setDevices(prev => prev.map(d => d.id === selectedDevice?.id ? { ...d, isPaired: true } : d));
         onPairingStatusChange(false, '');
@@ -165,6 +191,11 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     setIsConnected(false);
     setSelectedDevice(null);
     setShowPairingModal(false);
+    try {
+      localStorage.removeItem('last_paired_tv');
+    } catch (e) {
+      console.warn('Could not clear paired tv', e);
+    }
     onPairingStatusChange(false, '');
     onTvAction('Disconnected from Google TV.');
     startAutoDiscovery();
@@ -454,44 +485,49 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               </button>
             </div>
 
-            {/* Volume Rocker & Playback Bar */}
-            <div className="grid grid-cols-2 gap-2 my-1">
-              {/* Volume Rocker */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between px-3 py-1.5">
-                <button
-                  onClick={() => handleKeyClick('Vol -', () => onTvVolumeChange(-2))}
-                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white font-bold"
-                >
-                  -
-                </button>
-                <span className="text-[10px] font-bold text-slate-400 font-mono">VOL</span>
+            {/* Volume Rocker & Playback Bar (Twin Vertical Rockers) */}
+            <div className="flex items-center justify-around px-8 my-2">
+              {/* Volume Rocker (Vertical) */}
+              <div className="w-16 h-36 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-between py-2 shadow-inner">
                 <button
                   onClick={() => handleKeyClick('Vol +', () => onTvVolumeChange(2))}
-                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white font-bold"
+                  className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white font-bold transition-all text-base"
+                  title="Volume Up"
                 >
                   +
                 </button>
+                <span className="text-[10px] font-bold text-slate-400 font-mono tracking-wider">VOL</span>
+                <button
+                  onClick={() => handleKeyClick('Vol -', () => onTvVolumeChange(-2))}
+                  className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white font-bold transition-all text-base"
+                  title="Volume Down"
+                >
+                  -
+                </button>
               </div>
 
-              {/* Playback Controls */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-around px-2 py-1.5 text-slate-300">
+              {/* Playback Controls (Vertical Twin Rocker - FastForward / Play / Rewind) */}
+              <div className="w-16 h-36 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-between py-2 shadow-inner">
                 <button
-                  onClick={() => handleKeyClick('Rewind', () => onTvAction('Rewind 10s'))}
-                  className="p-1 hover:text-white"
+                  onClick={() => handleKeyClick('FastForward', () => onTvAction('Fast Forward 10s'))}
+                  className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 flex items-center justify-center text-slate-300 hover:text-white transition-all"
+                  title="Fast Forward"
                 >
-                  <Rewind className="w-4 h-4" />
+                  <FastForward className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleKeyClick('Play/Pause', () => onTvAction('Toggled Play/Pause'))}
-                  className="p-1 hover:text-blue-400 text-blue-400"
+                  className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 active:scale-95 flex items-center justify-center text-blue-400 transition-all"
+                  title="Play / Pause"
                 >
-                  <Play className="w-4 h-4" />
+                  <Play className="w-4 h-4 fill-current" />
                 </button>
                 <button
-                  onClick={() => handleKeyClick('FastForward', () => onTvAction('Fast Forward 10s'))}
-                  className="p-1 hover:text-white"
+                  onClick={() => handleKeyClick('Rewind', () => onTvAction('Rewind 10s'))}
+                  className="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 flex items-center justify-center text-slate-300 hover:text-white transition-all"
+                  title="Rewind"
                 >
-                  <FastForward className="w-4 h-4" />
+                  <Rewind className="w-4 h-4" />
                 </button>
               </div>
             </div>

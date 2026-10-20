@@ -328,50 +328,73 @@ fun RemoteScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Volume & Playback Row
+        // Volume & Playback Controls (Matching Twin Vertical Rockers)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Volume Rocker
+            // Volume Vertical Rocker
             Card(
                 colors = CardDefaults.cardColors(containerColor = GoogleTvSurface),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, GoogleTvCardBorder)
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, GoogleTvCardBorder),
+                modifier = Modifier.width(76.dp).height(152.dp)
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 8.dp)
                 ) {
-                    IconButton(onClick = { triggerKey(TvKey.VOLUME_UP) }) {
-                        Icon(Icons.Default.Add, contentDescription = "Vol +", tint = GoogleTvTextPrimary)
+                    IconButton(
+                        onClick = { triggerKey(TvKey.VOLUME_UP) },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Vol +", tint = GoogleTvTextPrimary, modifier = Modifier.size(24.dp))
                     }
-                    Text("VOL", color = GoogleTvTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    IconButton(onClick = { triggerKey(TvKey.VOLUME_DOWN) }) {
-                        Icon(Icons.Default.Remove, contentDescription = "Vol -", tint = GoogleTvTextPrimary)
+                    Text("VOL", color = GoogleTvTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    IconButton(
+                        onClick = { triggerKey(TvKey.VOLUME_DOWN) },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Vol -", tint = GoogleTvTextPrimary, modifier = Modifier.size(24.dp))
                     }
                 }
             }
 
-            // Media Playback Controls
+            // Media Playback Vertical Rocker (Ulta / Vertical like Volume)
             Card(
                 colors = CardDefaults.cardColors(containerColor = GoogleTvSurface),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, GoogleTvCardBorder)
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, GoogleTvCardBorder),
+                modifier = Modifier.width(76.dp).height(152.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 8.dp)
                 ) {
-                    IconButton(onClick = { triggerKey(TvKey.REWIND) }) {
-                        Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = GoogleTvTextPrimary)
+                    IconButton(
+                        onClick = { triggerKey(TvKey.FAST_FORWARD) },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = GoogleTvTextPrimary, modifier = Modifier.size(22.dp))
                     }
-                    IconButton(onClick = { triggerKey(TvKey.PLAY_PAUSE) }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = GoogleTvBlue)
+                    IconButton(
+                        onClick = { triggerKey(TvKey.PLAY_PAUSE) },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = GoogleTvBlue, modifier = Modifier.size(26.dp))
                     }
-                    IconButton(onClick = { triggerKey(TvKey.FAST_FORWARD) }) {
-                        Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = GoogleTvTextPrimary)
+                    IconButton(
+                        onClick = { triggerKey(TvKey.REWIND) },
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = GoogleTvTextPrimary, modifier = Modifier.size(22.dp))
                     }
                 }
             }
