@@ -1,6 +1,8 @@
 package com.omnitech.googletv.remote.ui.screens
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,12 +22,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.omnitech.googletv.remote.R
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.ui.theme.*
 
@@ -37,14 +44,15 @@ fun DiscoveryScreen(
     errorMessage: String? = null,
     onStartScan: () -> Unit,
     onSelectDevice: (DiscoveredGoogleTv) -> Unit,
-    onForcePairDevice: (DiscoveredGoogleTv) -> Unit,
-    onUnpairDevice: (DiscoveredGoogleTv) -> Unit,
-    onResetAllSettings: () -> Unit,
-    onAddManualIp: (String) -> Unit,
-    onDismissError: () -> Unit,
+    onConnectDirectly: (DiscoveredGoogleTv) -> Unit = onSelectDevice,
+    onForcePairDevice: (DiscoveredGoogleTv) -> Unit = {},
+    onUnpairDevice: (DiscoveredGoogleTv) -> Unit = {},
+    onResetAllSettings: () -> Unit = {},
+    onAddManualIp: (String) -> Unit = {},
+    onDismissError: () -> Unit = {},
     onShowSplash: () -> Unit = {}
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var showManualDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
 
@@ -96,14 +104,14 @@ fun DiscoveryScreen(
                 ) {
                     val assetBitmap = remember {
                         try {
-                            context.assets.open("splash_photo.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }
+                            context.assets.open("splash_photo.jpg").use { BitmapFactory.decodeStream(it) }
                         } catch (e: Exception) { null }
                     }
                     if (assetBitmap != null) {
-                        androidx.compose.foundation.Image(
+                        Image(
                             bitmap = assetBitmap.asImageBitmap(),
                             contentDescription = "Shreyash & Shrijay Tripathi",
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -259,7 +267,7 @@ fun DiscoveryScreen(
                     DeviceCard(
                         device = tv,
                         isConnecting = isConnecting,
-                        onClick = { onSelectDevice(tv) },
+                        onClick = { onConnectDirectly(tv) },
                         onForcePair = { onForcePairDevice(tv) },
                         onUnpair = { onUnpairDevice(tv) }
                     )

@@ -164,6 +164,20 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
+                                onConnectDirectly = { tv ->
+                                    selectedTv = tv
+                                    connectionErrorMessage = null
+                                    if (tv.isPaired) {
+                                        lifecycleScope.launch(crashHandler) {
+                                            remoteEngine.connect(tv)
+                                        }
+                                    } else {
+                                        showPairingDialog = true
+                                        lifecycleScope.launch(crashHandler) {
+                                            pairingEngine.startPairing(tv)
+                                        }
+                                    }
+                                },
                                 onForcePairDevice = { tv ->
                                     selectedTv = tv
                                     connectionErrorMessage = null
