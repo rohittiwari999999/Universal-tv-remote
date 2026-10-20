@@ -230,6 +230,12 @@ class MainActivity : ComponentActivity() {
                                         pairingEngine.startPairing(selectedTv!!)
                                     }
                                 },
+                                onConnectDirectly = {
+                                    showPairingDialog = false
+                                    lifecycleScope.launch(crashHandler) {
+                                        remoteEngine.connect(selectedTv!!)
+                                    }
+                                },
                                 onDismiss = {
                                     showPairingDialog = false
                                     pairingEngine.reset()

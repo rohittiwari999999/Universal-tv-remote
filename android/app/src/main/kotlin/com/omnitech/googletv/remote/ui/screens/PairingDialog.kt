@@ -30,8 +30,8 @@ fun PairingDialog(
     device: DiscoveredGoogleTv,
     pairingState: PairingState,
     onSubmitPin: (String) -> Unit,
-    onRetryPairing: () -> Unit,
-    onConnectDirectly: () -> Unit,
+    onRetryPairing: () -> Unit = {},
+    onConnectDirectly: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var pinText by remember { mutableStateOf("") }

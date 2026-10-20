@@ -24,13 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.omnitech.googletv.remote.R
 import com.omnitech.googletv.remote.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -41,14 +38,19 @@ fun SplashScreen(
     val context = LocalContext.current
     var isVisible by remember { mutableStateOf(false) }
 
-    // Try loading bitmap from assets as ultra-reliable fallback
-    val assetBitmap = remember {
+    // Load bitmap safely from assets or drawable without compile-time R dependencies
+    val splashBitmap = remember {
         try {
             context.assets.open("splash_photo.jpg").use { inputStream ->
                 BitmapFactory.decodeStream(inputStream)
             }
         } catch (e: Exception) {
-            null
+            try {
+                val resId = context.resources.getIdentifier("splash_photo", "drawable", context.packageName)
+                if (resId != 0) BitmapFactory.decodeResource(context.resources, resId) else null
+            } catch (e2: Exception) {
+                null
+            }
         }
     }
 
@@ -148,20 +150,25 @@ fun SplashScreen(
                             shape = RoundedCornerShape(28.dp)
                         )
                 ) {
-                    if (assetBitmap != null) {
+                    if (splashBitmap != null) {
                         Image(
-                            bitmap = assetBitmap.asImageBitmap(),
+                            bitmap = splashBitmap.asImageBitmap(),
                             contentDescription = "Shreyash Tripathi & Shrijay Tripathi",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.splash_photo),
-                            contentDescription = "Shreyash Tripathi & Shrijay Tripathi",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(GoogleTvCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = GoogleTvBlue,
+                                modifier = Modifier.size(80.dp)
+                            )
+                        }
                     }
                 }
 
