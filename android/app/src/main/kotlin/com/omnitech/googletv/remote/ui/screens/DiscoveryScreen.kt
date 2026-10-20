@@ -41,8 +41,10 @@ fun DiscoveryScreen(
     onUnpairDevice: (DiscoveredGoogleTv) -> Unit,
     onResetAllSettings: () -> Unit,
     onAddManualIp: (String) -> Unit,
-    onDismissError: () -> Unit
+    onDismissError: () -> Unit,
+    onShowSplash: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showManualDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
 
@@ -71,21 +73,54 @@ fun DiscoveryScreen(
                     Text(
                         text = "Google TV Remote",
                         color = GoogleTvTextPrimary,
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
-                    text = if (isScanning) "Searching Wi-Fi for Google TVs..." else "${devices.size} TV(s) available",
-                    color = GoogleTvTextSecondary,
-                    fontSize = 13.sp
+                    text = "Shreyash & Shrijay Tripathi",
+                    color = GoogleTvBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Photo button to view Shreyash & Shrijay Tripathi
+                IconButton(
+                    onClick = onShowSplash,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, GoogleTvBlue, CircleShape)
+                ) {
+                    val assetBitmap = remember {
+                        try {
+                            context.assets.open("splash_photo.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }
+                        } catch (e: Exception) { null }
+                    }
+                    if (assetBitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = assetBitmap.asImageBitmap(),
+                            contentDescription = "Shreyash & Shrijay Tripathi",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Photo,
+                            contentDescription = "Photo",
+                            tint = GoogleTvBlue
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 IconButton(
                     onClick = { showResetDialog = true },
                     modifier = Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(GoogleTvSurface)
                 ) {
@@ -101,6 +136,7 @@ fun DiscoveryScreen(
                 IconButton(
                     onClick = onStartScan,
                     modifier = Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(GoogleTvSurface)
                 ) {

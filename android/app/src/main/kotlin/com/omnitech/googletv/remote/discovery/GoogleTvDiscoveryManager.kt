@@ -11,10 +11,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
+import java.util.ArrayDeque
 
 /**
  * Manages local network mDNS discovery exclusively for Google TV & Android TV devices.
- * Automatically filters out Google Home Mini, Nest Mini, smart speakers, and audio-only Cast devices.
+ * Uses only the official _androidtvremote2._tcp service, strictly preventing
+ * Google Home Mini, Nest Mini, or smart speakers from appearing.
+ *
+ * Implements a thread-safe sequential resolve queue to prevent Android NsdManager
+ * 'listener already in use' crashes when multiple devices respond.
  */
 class GoogleTvDiscoveryManager(private val context: Context) {
 
@@ -30,18 +35,19 @@ class GoogleTvDiscoveryManager(private val context: Context) {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
-    private var discoveryListenerAtv: NsdManager.DiscoveryListener? = null
-    private var discoveryListenerCast: NsdManager.DiscoveryListener? = null
+    private var discoveryListener: NsdManager.DiscoveryListener? = null
+
+    // Sequential Queue to resolve services safely one by one
+    private val resolveQueue = ArrayDeque<NsdServiceInfo>()
+    private var isResolving = false
+    private val queueLock = Any()
 
     companion object {
+        // Official Android TV / Google TV Remote v2 protocol service
+        // Audio speakers (like Google Home Mini) NEVER broadcast this service.
         const val SERVICE_TYPE_GOOGLE_TV = "_androidtvremote2._tcp."
-        const val SERVICE_TYPE_CAST = "_googlecast._tcp."
         private const val PREFS_NAME = "google_tv_paired_devices"
         private const val MANUAL_IPS_KEY = "manual_ips"
-
-        // Google Cast Capability bitmasks
-        // Bit 0 = Video Out (TVs and display Chromecasts have this bit set)
-        private const val CAPABILITY_VIDEO_OUT = 1L
     }
 
     init {
@@ -49,10 +55,13 @@ class GoogleTvDiscoveryManager(private val context: Context) {
     }
 
     /**
-     * Starts active scanning on the local Wi-Fi network.
+     * Starts active scanning on the local Wi-Fi network for Google TV devices.
      */
+    @Synchronized
     fun startDiscovery() {
-        if (_isScanning.value) return
+        if (_isScanning.value) {
+            stopDiscovery()
+        }
 
         try {
             multicastLock = wifiManager?.createMulticastLock("GoogleTvMulticastLock")?.apply {
@@ -65,166 +74,134 @@ class GoogleTvDiscoveryManager(private val context: Context) {
 
         _isScanning.value = true
 
-        // 1. Primary discovery: Official Android TV / Google TV Remote v2 protocol
-        discoveryListenerAtv = createDiscoveryListener("GoogleTV")
-        try {
-            nsdManager.discoverServices(SERVICE_TYPE_GOOGLE_TV, NsdManager.PROTOCOL_DNS_SD, discoveryListenerAtv)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error discovering _androidtvremote2: ${e.message}")
-        }
-
-        // 2. Cast discovery fallback: Only for TV/Display devices (video-out enabled)
-        discoveryListenerCast = createDiscoveryListener("CastFallback")
-        try {
-            nsdManager.discoverServices(SERVICE_TYPE_CAST, NsdManager.PROTOCOL_DNS_SD, discoveryListenerCast)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error discovering _googlecast: ${e.message}")
-        }
-    }
-
-    private fun createDiscoveryListener(tag: String): NsdManager.DiscoveryListener {
-        return object : NsdManager.DiscoveryListener {
+        val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
-                Log.d(TAG, "[$tag] Discovery started: $regType")
+                Log.d(TAG, "Discovery started for $regType")
             }
 
             override fun onServiceFound(service: NsdServiceInfo) {
-                Log.d(TAG, "[$tag] Service found: ${service.serviceName} (${service.serviceType})")
-                resolveService(service)
+                Log.d(TAG, "Service found: ${service.serviceName} (${service.serviceType})")
+                enqueueResolve(service)
             }
 
             override fun onServiceLost(service: NsdServiceInfo) {
-                Log.d(TAG, "[$tag] Service lost: ${service.serviceName}")
+                Log.d(TAG, "Service lost: ${service.serviceName}")
                 removeDevice(service.serviceName)
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
-                Log.d(TAG, "[$tag] Discovery stopped: $serviceType")
+                Log.d(TAG, "Discovery stopped for $serviceType")
                 _isScanning.value = false
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.e(TAG, "[$tag] Start discovery failed: $errorCode")
+                Log.e(TAG, "Start discovery failed: $errorCode")
                 stopDiscovery()
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.e(TAG, "[$tag] Stop discovery failed: $errorCode")
+                Log.e(TAG, "Stop discovery failed: $errorCode")
+            }
+        }
+
+        discoveryListener = listener
+
+        try {
+            nsdManager.discoverServices(SERVICE_TYPE_GOOGLE_TV, NsdManager.PROTOCOL_DNS_SD, listener)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting discoverServices: ${e.message}")
+            _isScanning.value = false
+        }
+    }
+
+    private fun enqueueResolve(serviceInfo: NsdServiceInfo) {
+        synchronized(queueLock) {
+            // Avoid duplicate resolutions in flight
+            if (resolveQueue.none { it.serviceName == serviceInfo.serviceName }) {
+                resolveQueue.addLast(serviceInfo)
+            }
+            processNextResolve()
+        }
+    }
+
+    private fun processNextResolve() {
+        synchronized(queueLock) {
+            if (isResolving || resolveQueue.isEmpty()) return
+            val nextService = resolveQueue.removeFirst()
+            isResolving = true
+
+            val resolveListener = object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    Log.w(TAG, "Resolve failed for ${serviceInfo.serviceName}: code $errorCode")
+                    synchronized(queueLock) {
+                        isResolving = false
+                        processNextResolve()
+                    }
+                }
+
+                override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
+                    try {
+                        handleResolvedService(resolvedInfo)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error handling resolved service: ${e.message}", e)
+                    } finally {
+                        synchronized(queueLock) {
+                            isResolving = false
+                            processNextResolve()
+                        }
+                    }
+                }
+            }
+
+            try {
+                nsdManager.resolveService(nextService, resolveListener)
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception calling resolveService: ${e.message}", e)
+                isResolving = false
+                processNextResolve()
             }
         }
     }
 
-    private fun resolveService(serviceInfo: NsdServiceInfo) {
-        val resolveListener = object : NsdManager.ResolveListener {
-            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                Log.w(TAG, "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
-            }
+    private fun handleResolvedService(resolvedInfo: NsdServiceInfo) {
+        val host = resolvedInfo.host?.hostAddress ?: return
+        val rawName = resolvedInfo.serviceName ?: "Google TV"
+        val friendlyName = cleanTvName(rawName)
+        val model = extractModelFromAttributes(resolvedInfo)
 
-            override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
-                val host = resolvedInfo.host?.hostAddress ?: return
-                val port = resolvedInfo.port
-                val rawName = resolvedInfo.serviceName ?: "Google TV"
-                val serviceType = resolvedInfo.serviceType ?: ""
-
-                val friendlyName = cleanTvName(rawName)
-                val model = extractModelFromAttributes(resolvedInfo)
-                val attributes = resolvedInfo.attributes
-
-                // STRICT FILTER: Discard Google Home Mini, Nest Audio, smart speakers, etc.
-                if (isAudioOnlySpeakerDevice(rawName, friendlyName, model, serviceType, attributes)) {
-                    Log.i(TAG, "Filtered out non-TV audio speaker: '$friendlyName' (model: $model)")
-                    return
-                }
-
-                val deviceId = "${host}_$friendlyName"
-
-                val discoveredTv = DiscoveredGoogleTv(
-                    id = deviceId,
-                    name = friendlyName,
-                    hostAddress = host,
-                    pairingPort = 6467,
-                    remotePort = if (port == 6467) 6466 else port,
-                    model = model,
-                    signalStrengthDbm = -45 - (Math.random() * 20).toInt(),
-                    isPaired = isDevicePreviouslyPaired(deviceId)
-                )
-
-                addOrUpdateDevice(discoveredTv)
-            }
+        // Safety check: ensure no speaker device can ever be shown
+        if (isAudioSpeakerDevice(friendlyName, model)) {
+            Log.i(TAG, "Discarded audio speaker: '$friendlyName' ($model)")
+            return
         }
 
-        try {
-            nsdManager.resolveService(serviceInfo, resolveListener)
-        } catch (e: Exception) {
-            Log.w(TAG, "Resolve call error: ${e.message}")
-        }
+        val deviceId = "${host}_$friendlyName"
+
+        val discoveredTv = DiscoveredGoogleTv(
+            id = deviceId,
+            name = friendlyName,
+            hostAddress = host,
+            pairingPort = 6467,
+            remotePort = 6466,
+            model = model,
+            signalStrengthDbm = -45 - (Math.random() * 20).toInt(),
+            isPaired = isDevicePreviouslyPaired(deviceId)
+        )
+
+        addOrUpdateDevice(discoveredTv)
     }
 
     /**
-     * Determines whether the discovered device is an audio-only speaker (like Google Home Mini,
-     * Nest Mini, Nest Audio, Chromecast Audio) rather than a Google TV / Android TV screen device.
+     * Extra safety layer: checks if a device name or model refers to a speaker.
      */
-    private fun isAudioOnlySpeakerDevice(
-        rawName: String,
-        friendlyName: String,
-        model: String,
-        serviceType: String,
-        attributes: Map<String, ByteArray>
-    ): Boolean {
-        val lowerRaw = rawName.lowercase()
-        val lowerFriendly = friendlyName.lowercase()
-        val lowerModel = model.lowercase()
-
-        // 1. Blacklist speaker / audio-only brand names
-        val speakerKeywords = listOf(
-            "home mini",
-            "google home",
-            "nest mini",
-            "nest audio",
-            "home max",
-            "nest hub",
-            "chromecast audio",
-            "smart speaker",
-            "bluetooth speaker",
-            "smart clock",
-            "lenovo smart clock",
-            "jbl link",
-            "bose portable",
-            "sonos",
-            "speaker"
+    private fun isAudioSpeakerDevice(friendlyName: String, model: String): Boolean {
+        val lower = "${friendlyName.lowercase()} ${model.lowercase()}"
+        val speakerTerms = listOf(
+            "home mini", "google home", "nest mini", "nest audio",
+            "home max", "nest hub", "chromecast audio", "smart speaker",
+            "bluetooth speaker", "smart clock", "speaker"
         )
-
-        for (kw in speakerKeywords) {
-            if (lowerRaw.contains(kw) || lowerFriendly.contains(kw) || lowerModel.contains(kw)) {
-                return true
-            }
-        }
-
-        // 2. For Google Cast services, check the 'ca' (capabilities) attribute
-        // Cast devices without Video Out capability (bit 0 = 0x01) are pure audio devices
-        val caBytes = attributes["ca"]
-        if (caBytes != null) {
-            val caStr = String(caBytes).trim()
-            val caVal = caStr.toLongOrNull() ?: 0L
-            if ((caVal and CAPABILITY_VIDEO_OUT) == 0L) {
-                // Device does not have video out -> It is an audio speaker / smart clock
-                return true
-            }
-        }
-
-        // 3. If service is Google Cast and model name is missing or unknown, verify it's not a speaker
-        if (serviceType.contains("googlecast", ignoreCase = true)) {
-            // If Cast TXT attributes explicitly identify it as audio-only
-            val fnBytes = attributes["fn"]
-            if (fnBytes != null) {
-                val fnStr = String(fnBytes).lowercase()
-                for (kw in speakerKeywords) {
-                    if (fnStr.contains(kw)) return true
-                }
-            }
-        }
-
-        return false
+        return speakerTerms.any { lower.contains(it) }
     }
 
     private fun cleanTvName(name: String): String {
@@ -236,7 +213,7 @@ class GoogleTvDiscoveryManager(private val context: Context) {
 
     private fun extractModelFromAttributes(serviceInfo: NsdServiceInfo): String {
         return try {
-            val attributes = serviceInfo.attributes
+            val attributes = serviceInfo.attributes ?: return "Google TV"
             val mdBytes = attributes["md"] ?: attributes["model"] ?: attributes["fn"]
             if (mdBytes != null) String(mdBytes) else "Google TV / Android TV"
         } catch (e: Exception) {
@@ -386,16 +363,21 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         Log.i(TAG, "Wiped all paired devices and TLS identity credentials")
     }
 
+    @Synchronized
     fun stopDiscovery() {
-        try {
-            discoveryListenerAtv?.let { nsdManager.stopServiceDiscovery(it) }
-            discoveryListenerAtv = null
-        } catch (ignored: Exception) {}
+        synchronized(queueLock) {
+            resolveQueue.clear()
+            isResolving = false
+        }
 
-        try {
-            discoveryListenerCast?.let { nsdManager.stopServiceDiscovery(it) }
-            discoveryListenerCast = null
-        } catch (ignored: Exception) {}
+        discoveryListener?.let {
+            try {
+                nsdManager.stopServiceDiscovery(it)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping discovery: ${e.message}")
+            }
+            discoveryListener = null
+        }
 
         try {
             if (multicastLock?.isHeld == true) {

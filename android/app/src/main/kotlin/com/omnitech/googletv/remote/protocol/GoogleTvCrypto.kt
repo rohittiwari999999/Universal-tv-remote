@@ -11,7 +11,6 @@ import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
-import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.Security
 import java.security.cert.CertificateFactory
@@ -42,8 +41,15 @@ object GoogleTvCrypto {
     private const val CERT_FILE = "google_tv_client_cert.der"
 
     init {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(BouncyCastleProvider())
+        try {
+            // Android has an internal restricted BouncyCastle.
+            // Insert full BouncyCastle provider cleanly to avoid NoSuchAlgorithmException.
+            Security.removeProvider("BC")
+            Security.insertProviderAt(BouncyCastleProvider(), 1)
+        } catch (e: Exception) {
+            try {
+                Security.addProvider(BouncyCastleProvider())
+            } catch (ignored: Exception) {}
         }
     }
 
@@ -61,9 +67,16 @@ object GoogleTvCrypto {
     fun getOrCreateSslContext(context: Context): SSLContext {
         val (keyPair, cert) = getOrCreateCredentials(context)
 
-        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-            load(null, null)
-            setKeyEntry(KEY_ALIAS, keyPair.private, "remote_secret".toCharArray(), arrayOf(cert))
+        val keyStore = try {
+            KeyStore.getInstance("PKCS12").apply {
+                load(null, null)
+                setKeyEntry(KEY_ALIAS, keyPair.private, "remote_secret".toCharArray(), arrayOf(cert))
+            }
+        } catch (e: Exception) {
+            KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null, null)
+                setKeyEntry(KEY_ALIAS, keyPair.private, "remote_secret".toCharArray(), arrayOf(cert))
+            }
         }
 
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
@@ -174,7 +187,6 @@ object GoogleTvCrypto {
             keyPair.public
         )
 
-        // Add CA basic constraints and Subject Alternative Name matching official Android TV Remote
         try {
             builder.addExtension(
                 org.bouncycastle.asn1.x509.Extension.basicConstraints,

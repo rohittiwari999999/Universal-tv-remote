@@ -42,6 +42,9 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   onPairingStatusChange,
   pairingCode
 }) => {
+  // Splash Screen State
+  const [showSplash, setShowSplash] = useState(true);
+
   // Discovery State
   const [isScanning, setIsScanning] = useState(true);
   const [devices, setDevices] = useState<DiscoveredTvItem[]>([]);
@@ -59,6 +62,14 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   const [inputText, setInputText] = useState('');
   const [showManualIpModal, setShowManualIpModal] = useState(false);
   const [manualIpText, setManualIpText] = useState('');
+
+  // Auto-dismiss splash screen after 3.2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 3200);
+    return () => clearTimeout(timer);
+  }, []);
 
   // 1. Automatic Discovery on App Launch (As specifically requested by user!)
   useEffect(() => {
@@ -204,8 +215,47 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
       {/* Main Screen Content */}
       <div className="flex-1 px-4 py-2 flex flex-col justify-between overflow-y-auto z-10 text-slate-100">
         
-        {/* VIEW 1: CONNECTED REMOTE CONTROL */}
-        {isConnected && selectedDevice ? (
+        {/* VIEW 0: SPLASH SCREEN (Photo of Shreyash Tripathi & Shrijay Tripathi) */}
+        {showSplash ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-3 text-center animate-in fade-in duration-500">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 mb-3">
+              <Tv className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-[10px] font-bold text-blue-400 tracking-widest uppercase">Google TV Remote</span>
+            </div>
+
+            <div className="relative mb-3.5 group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 rounded-2xl blur-sm opacity-80 animate-pulse"></div>
+              <div className="relative w-44 h-52 rounded-xl overflow-hidden border-2 border-white/20 shadow-2xl bg-slate-900">
+                <img
+                  src="/splash_photo.jpg"
+                  alt="Shreyash Tripathi & Shrijay Tripathi"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+
+            <div className="text-base font-extrabold text-white tracking-wide leading-tight">
+              SHREYASH TRIPATHI
+            </div>
+            <div className="text-[11px] font-bold text-blue-400 tracking-widest my-0.5">
+              AND
+            </div>
+            <div className="text-base font-extrabold text-white tracking-wide leading-tight">
+              SHRIJAY TRIPATHI
+            </div>
+
+            <p className="text-[11px] text-slate-400 mt-1.5 font-medium">
+              Smart Google TV Remote Controller
+            </p>
+
+            <button
+              onClick={() => setShowSplash(false)}
+              className="mt-4 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/25 flex items-center gap-1.5 transition"
+            >
+              Enter Remote <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : isConnected && selectedDevice ? (
           <div className="flex flex-col h-full justify-between pb-2">
             
             {/* Connected Device Header Bar */}
@@ -483,27 +533,43 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
           /* VIEW 2: AUTO DISCOVERY SCREEN (Opens immediately on startup) */
           <div className="flex flex-col h-full justify-between pb-4">
             
-            {/* Top Bar */}
+            {/* Top Bar with Shreyash & Shrijay Tripathi dedication */}
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
-                  <Tv className="w-4 h-4" />
-                </div>
+                <button
+                  onClick={() => setShowSplash(true)}
+                  className="relative group w-8 h-8 rounded-full overflow-hidden border-2 border-blue-400 shadow-md ring-2 ring-blue-500/20 hover:scale-105 transition-transform"
+                  title="View Shreyash & Shrijay Tripathi"
+                >
+                  <img
+                    src="/splash_photo.jpg"
+                    alt="Shreyash & Shrijay"
+                    className="w-full h-full object-cover"
+                  />
+                </button>
                 <div className="text-left">
-                  <h2 className="text-sm font-bold text-white leading-tight">Google TV Remote</h2>
-                  <p className="text-[10px] text-slate-400 font-mono">
-                    {isScanning ? 'Auto-scanning Wi-Fi...' : `${devices.length} nearby TVs found`}
+                  <h2 className="text-xs font-bold text-white leading-tight">Google TV Remote</h2>
+                  <p className="text-[10px] text-blue-400 font-semibold tracking-wide">
+                    Shreyash & Shrijay
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={startAutoDiscovery}
-                className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-400 hover:bg-slate-800 transition-colors"
-                title="Rescan"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowSplash(true)}
+                  className="px-2 py-1 rounded-lg bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 hover:bg-blue-600/30 transition-colors"
+                >
+                  Photo
+                </button>
+                <button
+                  onClick={startAutoDiscovery}
+                  className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-400 hover:bg-slate-800 transition-colors"
+                  title="Rescan"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             </div>
 
             {/* Radar Sweep Animation Banner */}

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,28 +23,43 @@ import com.omnitech.googletv.remote.protocol.GoogleTvRemoteEngine
 import com.omnitech.googletv.remote.ui.screens.DiscoveryScreen
 import com.omnitech.googletv.remote.ui.screens.PairingDialog
 import com.omnitech.googletv.remote.ui.screens.RemoteScreen
+import com.omnitech.googletv.remote.ui.screens.SplashScreen
 import com.omnitech.googletv.remote.ui.theme.GoogleTvDark
 import com.omnitech.googletv.remote.ui.theme.GoogleTvRemoteTheme
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    private val TAG = "MainActivity"
     private lateinit var discoveryManager: GoogleTvDiscoveryManager
     private lateinit var pairingEngine: GoogleTvPairingEngine
     private lateinit var remoteEngine: GoogleTvRemoteEngine
 
+    private val crashHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Caught uncaught coroutine exception: ${throwable.message}", throwable)
+    }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        discoveryManager.startDiscovery()
+        try {
+            discoveryManager.startDiscovery()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting discovery after permission: ${e.message}")
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        discoveryManager = GoogleTvDiscoveryManager(this)
-        pairingEngine = GoogleTvPairingEngine(this)
-        remoteEngine = GoogleTvRemoteEngine(this)
+        try {
+            discoveryManager = GoogleTvDiscoveryManager(this)
+            pairingEngine = GoogleTvPairingEngine(this)
+            remoteEngine = GoogleTvRemoteEngine(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Initialization error: ${e.message}", e)
+        }
 
         checkPermissionsAndStartDiscovery()
 
@@ -53,151 +69,159 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = GoogleTvDark
                 ) {
-                    val devices by discoveryManager.devices.collectAsState()
-                    val isScanning by discoveryManager.isScanning.collectAsState()
-                    val pairingState by pairingEngine.pairingState.collectAsState()
-                    val connectionState by remoteEngine.connectionState.collectAsState()
+                    var showSplashScreen by remember { mutableStateOf(true) }
 
-                    var selectedTv by remember { mutableStateOf<DiscoveredGoogleTv?>(null) }
-                    var showPairingDialog by remember { mutableStateOf(false) }
-                    var connectionErrorMessage by remember { mutableStateOf<String?>(null) }
-
-                    // Surface connection errors back to the user
-                    LaunchedEffect(connectionState) {
-                        if (connectionState is RemoteConnectionState.Error) {
-                            connectionErrorMessage = (connectionState as RemoteConnectionState.Error).message
-                        } else if (connectionState is RemoteConnectionState.Connected) {
-                            connectionErrorMessage = null
-                        }
-                    }
-
-                    // Auto-advance to remote control when pairing is authenticated
-                    LaunchedEffect(pairingState) {
-                        if (pairingState is PairingState.Paired) {
-                            val pairedDevice = (pairingState as PairingState.Paired).device
-                            discoveryManager.markDevicePaired(pairedDevice.id)
-                            showPairingDialog = false
-                            selectedTv = pairedDevice
-                            pairingEngine.reset()
-                            remoteEngine.connect(pairedDevice)
-                        }
-                    }
-
-                    // Resolve currently active connected device
-                    val activeConnectedDevice = (connectionState as? RemoteConnectionState.Connected)?.device ?: selectedTv
-
-                    if (connectionState is RemoteConnectionState.Connected && activeConnectedDevice != null) {
-                        // Main Remote Control Screen
-                        RemoteScreen(
-                            device = activeConnectedDevice,
-                            connectionState = connectionState,
-                            onSendKey = { key ->
-                                lifecycleScope.launch {
-                                    remoteEngine.sendKey(key)
-                                }
-                            },
-                            onSendText = { text ->
-                                lifecycleScope.launch {
-                                    remoteEngine.sendText(text)
-                                }
-                            },
-                            onLaunchApp = { packageName ->
-                                lifecycleScope.launch {
-                                    remoteEngine.launchApp(packageName)
-                                }
-                            },
-                            onDisconnect = {
-                                remoteEngine.disconnect()
-                                selectedTv = null
-                                discoveryManager.startDiscovery()
+                    if (showSplashScreen) {
+                        SplashScreen(
+                            onSplashFinished = {
+                                showSplashScreen = false
                             }
                         )
                     } else {
-                        // Discovery & Pairing Hub Screen
-                        val connectingDeviceId = (connectionState as? RemoteConnectionState.Connecting)?.device?.id
-                        DiscoveryScreen(
-                            devices = devices,
-                            isScanning = isScanning,
-                            connectingDeviceId = connectingDeviceId,
-                            errorMessage = connectionErrorMessage,
-                            onStartScan = {
-                                discoveryManager.startDiscovery()
-                            },
-                            onSelectDevice = { tv ->
-                                selectedTv = tv
+                        val devices by discoveryManager.devices.collectAsState()
+                        val isScanning by discoveryManager.isScanning.collectAsState()
+                        val pairingState by pairingEngine.pairingState.collectAsState()
+                        val connectionState by remoteEngine.connectionState.collectAsState()
+
+                        var selectedTv by remember { mutableStateOf<DiscoveredGoogleTv?>(null) }
+                        var showPairingDialog by remember { mutableStateOf(false) }
+                        var connectionErrorMessage by remember { mutableStateOf<String?>(null) }
+
+                        // Surface connection errors back to the user
+                        LaunchedEffect(connectionState) {
+                            if (connectionState is RemoteConnectionState.Error) {
+                                connectionErrorMessage = (connectionState as RemoteConnectionState.Error).message
+                            } else if (connectionState is RemoteConnectionState.Connected) {
                                 connectionErrorMessage = null
-                                if (tv.isPaired) {
-                                    lifecycleScope.launch {
-                                        remoteEngine.connect(tv)
+                            }
+                        }
+
+                        // Auto-advance to remote control when pairing is authenticated
+                        LaunchedEffect(pairingState) {
+                            if (pairingState is PairingState.Paired) {
+                                val pairedDevice = (pairingState as PairingState.Paired).device
+                                discoveryManager.markDevicePaired(pairedDevice.id)
+                                showPairingDialog = false
+                                selectedTv = pairedDevice
+                                pairingEngine.reset()
+                                lifecycleScope.launch(crashHandler) {
+                                    remoteEngine.connect(pairedDevice)
+                                }
+                            }
+                        }
+
+                        // Resolve currently active connected device
+                        val activeConnectedDevice = (connectionState as? RemoteConnectionState.Connected)?.device ?: selectedTv
+
+                        if (connectionState is RemoteConnectionState.Connected && activeConnectedDevice != null) {
+                            // Main Remote Control Screen
+                            RemoteScreen(
+                                device = activeConnectedDevice,
+                                connectionState = connectionState,
+                                onSendKey = { key ->
+                                    lifecycleScope.launch(crashHandler) {
+                                        remoteEngine.sendKey(key)
                                     }
-                                } else {
+                                },
+                                onSendText = { text ->
+                                    lifecycleScope.launch(crashHandler) {
+                                        remoteEngine.sendText(text)
+                                    }
+                                },
+                                onLaunchApp = { packageName ->
+                                    lifecycleScope.launch(crashHandler) {
+                                        remoteEngine.launchApp(packageName)
+                                    }
+                                },
+                                onDisconnect = {
+                                    remoteEngine.disconnect()
+                                    selectedTv = null
+                                    discoveryManager.startDiscovery()
+                                }
+                            )
+                        } else {
+                            // Discovery & Pairing Hub Screen
+                            val connectingDeviceId = (connectionState as? RemoteConnectionState.Connecting)?.device?.id
+                            DiscoveryScreen(
+                                devices = devices,
+                                isScanning = isScanning,
+                                connectingDeviceId = connectingDeviceId,
+                                errorMessage = connectionErrorMessage,
+                                onStartScan = {
+                                    discoveryManager.startDiscovery()
+                                },
+                                onSelectDevice = { tv ->
+                                    selectedTv = tv
+                                    connectionErrorMessage = null
+                                    if (tv.isPaired) {
+                                        lifecycleScope.launch(crashHandler) {
+                                            remoteEngine.connect(tv)
+                                        }
+                                    } else {
+                                        showPairingDialog = true
+                                        lifecycleScope.launch(crashHandler) {
+                                            pairingEngine.startPairing(tv)
+                                        }
+                                    }
+                                },
+                                onForcePairDevice = { tv ->
+                                    selectedTv = tv
+                                    connectionErrorMessage = null
                                     showPairingDialog = true
-                                    lifecycleScope.launch {
+                                    lifecycleScope.launch(crashHandler) {
                                         pairingEngine.startPairing(tv)
                                     }
+                                },
+                                onUnpairDevice = { tv ->
+                                    discoveryManager.unpairDevice(tv.id)
+                                    if (tv.id.startsWith("manual_")) {
+                                        discoveryManager.removeManualDevice(tv.id)
+                                    }
+                                    remoteEngine.disconnect()
+                                    if (selectedTv?.id == tv.id) selectedTv = null
+                                },
+                                onResetAllSettings = {
+                                    discoveryManager.resetAllSettings()
+                                    remoteEngine.disconnect()
+                                    pairingEngine.reset()
+                                    selectedTv = null
+                                    connectionErrorMessage = null
+                                    discoveryManager.startDiscovery()
+                                },
+                                onAddManualIp = { ip ->
+                                    connectionErrorMessage = null
+                                    discoveryManager.addManualDevice(ip)
+                                },
+                                onDismissError = {
+                                    connectionErrorMessage = null
+                                },
+                                onShowSplash = {
+                                    showSplashScreen = true
                                 }
-                            },
-                            onForcePairDevice = { tv ->
-                                selectedTv = tv
-                                connectionErrorMessage = null
-                                showPairingDialog = true
-                                lifecycleScope.launch {
-                                    pairingEngine.startPairing(tv)
-                                }
-                            },
-                            onUnpairDevice = { tv ->
-                                discoveryManager.unpairDevice(tv.id)
-                                if (tv.id.startsWith("manual_")) {
-                                    discoveryManager.removeManualDevice(tv.id)
-                                }
-                                remoteEngine.disconnect()
-                                if (selectedTv?.id == tv.id) selectedTv = null
-                            },
-                            onResetAllSettings = {
-                                discoveryManager.resetAllSettings()
-                                remoteEngine.disconnect()
-                                pairingEngine.reset()
-                                selectedTv = null
-                                connectionErrorMessage = null
-                                discoveryManager.startDiscovery()
-                            },
-                            onAddManualIp = { ip ->
-                                connectionErrorMessage = null
-                                discoveryManager.addManualDevice(ip)
-                            },
-                            onDismissError = {
-                                connectionErrorMessage = null
-                            }
-                        )
-                    }
+                            )
+                        }
 
-                    // Pairing PIN Code Dialog
-                    if (showPairingDialog && selectedTv != null) {
-                        PairingDialog(
-                            device = selectedTv!!,
-                            pairingState = pairingState,
-                            onSubmitPin = { pin ->
-                                lifecycleScope.launch {
-                                    pairingEngine.submitPin(pin)
+                        // Pairing PIN Code Dialog
+                        if (showPairingDialog && selectedTv != null) {
+                            PairingDialog(
+                                device = selectedTv!!,
+                                pairingState = pairingState,
+                                onSubmitPin = { pin ->
+                                    lifecycleScope.launch(crashHandler) {
+                                        pairingEngine.submitPin(pin)
+                                    }
+                                },
+                                onRetryPairing = {
+                                    lifecycleScope.launch(crashHandler) {
+                                        pairingEngine.startPairing(selectedTv!!)
+                                    }
+                                },
+                                onDismiss = {
+                                    showPairingDialog = false
+                                    pairingEngine.reset()
                                 }
-                            },
-                            onRetryPairing = {
-                                lifecycleScope.launch {
-                                    pairingEngine.startPairing(selectedTv!!)
-                                }
-                            },
-                            onConnectDirectly = {
-                                showPairingDialog = false
-                                val tv = selectedTv ?: return@PairingDialog
-                                lifecycleScope.launch {
-                                    remoteEngine.connect(tv)
-                                }
-                            },
-                            onDismiss = {
-                                showPairingDialog = false
-                                pairingEngine.reset()
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -218,14 +242,20 @@ class MainActivity : ComponentActivity() {
         if (ungranted.isNotEmpty()) {
             permissionLauncher.launch(ungranted.toTypedArray())
         } else {
-            discoveryManager.startDiscovery()
+            try {
+                discoveryManager.startDiscovery()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting discovery: ${e.message}")
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        discoveryManager.stopDiscovery()
-        remoteEngine.disconnect()
-        pairingEngine.reset()
+        try {
+            discoveryManager.stopDiscovery()
+            remoteEngine.disconnect()
+            pairingEngine.reset()
+        } catch (ignored: Exception) {}
     }
 }
