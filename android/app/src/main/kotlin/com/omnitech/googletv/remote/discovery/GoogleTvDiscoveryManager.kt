@@ -13,11 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 
 /**
- * Manages local network mDNS discovery for Google TV devices.
- * Supports:
- * 1. _androidtvremote2._tcp (Official Google TV Remote v2 protocol)
- * 2. _googlecast._tcp (Google Cast protocol fallback)
- * 3. Manual IP configuration with persistent storage and clean unpairing/reset capabilities.
+ * Manages local network mDNS discovery exclusively for Google TV & Android TV devices.
+ * Automatically filters out Google Home Mini, Nest Mini, smart speakers, and audio-only Cast devices.
  */
 class GoogleTvDiscoveryManager(private val context: Context) {
 
@@ -41,6 +38,10 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         const val SERVICE_TYPE_CAST = "_googlecast._tcp."
         private const val PREFS_NAME = "google_tv_paired_devices"
         private const val MANUAL_IPS_KEY = "manual_ips"
+
+        // Google Cast Capability bitmasks
+        // Bit 0 = Video Out (TVs and display Chromecasts have this bit set)
+        private const val CAPABILITY_VIDEO_OUT = 1L
     }
 
     init {
@@ -64,6 +65,7 @@ class GoogleTvDiscoveryManager(private val context: Context) {
 
         _isScanning.value = true
 
+        // 1. Primary discovery: Official Android TV / Google TV Remote v2 protocol
         discoveryListenerAtv = createDiscoveryListener("GoogleTV")
         try {
             nsdManager.discoverServices(SERVICE_TYPE_GOOGLE_TV, NsdManager.PROTOCOL_DNS_SD, discoveryListenerAtv)
@@ -71,6 +73,7 @@ class GoogleTvDiscoveryManager(private val context: Context) {
             Log.e(TAG, "Error discovering _androidtvremote2: ${e.message}")
         }
 
+        // 2. Cast discovery fallback: Only for TV/Display devices (video-out enabled)
         discoveryListenerCast = createDiscoveryListener("CastFallback")
         try {
             nsdManager.discoverServices(SERVICE_TYPE_CAST, NsdManager.PROTOCOL_DNS_SD, discoveryListenerCast)
@@ -121,8 +124,18 @@ class GoogleTvDiscoveryManager(private val context: Context) {
                 val host = resolvedInfo.host?.hostAddress ?: return
                 val port = resolvedInfo.port
                 val rawName = resolvedInfo.serviceName ?: "Google TV"
+                val serviceType = resolvedInfo.serviceType ?: ""
 
                 val friendlyName = cleanTvName(rawName)
+                val model = extractModelFromAttributes(resolvedInfo)
+                val attributes = resolvedInfo.attributes
+
+                // STRICT FILTER: Discard Google Home Mini, Nest Audio, smart speakers, etc.
+                if (isAudioOnlySpeakerDevice(rawName, friendlyName, model, serviceType, attributes)) {
+                    Log.i(TAG, "Filtered out non-TV audio speaker: '$friendlyName' (model: $model)")
+                    return
+                }
+
                 val deviceId = "${host}_$friendlyName"
 
                 val discoveredTv = DiscoveredGoogleTv(
@@ -131,7 +144,7 @@ class GoogleTvDiscoveryManager(private val context: Context) {
                     hostAddress = host,
                     pairingPort = 6467,
                     remotePort = if (port == 6467) 6466 else port,
-                    model = extractModelFromAttributes(resolvedInfo),
+                    model = model,
                     signalStrengthDbm = -45 - (Math.random() * 20).toInt(),
                     isPaired = isDevicePreviouslyPaired(deviceId)
                 )
@@ -145,6 +158,73 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Resolve call error: ${e.message}")
         }
+    }
+
+    /**
+     * Determines whether the discovered device is an audio-only speaker (like Google Home Mini,
+     * Nest Mini, Nest Audio, Chromecast Audio) rather than a Google TV / Android TV screen device.
+     */
+    private fun isAudioOnlySpeakerDevice(
+        rawName: String,
+        friendlyName: String,
+        model: String,
+        serviceType: String,
+        attributes: Map<String, ByteArray>
+    ): Boolean {
+        val lowerRaw = rawName.lowercase()
+        val lowerFriendly = friendlyName.lowercase()
+        val lowerModel = model.lowercase()
+
+        // 1. Blacklist speaker / audio-only brand names
+        val speakerKeywords = listOf(
+            "home mini",
+            "google home",
+            "nest mini",
+            "nest audio",
+            "home max",
+            "nest hub",
+            "chromecast audio",
+            "smart speaker",
+            "bluetooth speaker",
+            "smart clock",
+            "lenovo smart clock",
+            "jbl link",
+            "bose portable",
+            "sonos",
+            "speaker"
+        )
+
+        for (kw in speakerKeywords) {
+            if (lowerRaw.contains(kw) || lowerFriendly.contains(kw) || lowerModel.contains(kw)) {
+                return true
+            }
+        }
+
+        // 2. For Google Cast services, check the 'ca' (capabilities) attribute
+        // Cast devices without Video Out capability (bit 0 = 0x01) are pure audio devices
+        val caBytes = attributes["ca"]
+        if (caBytes != null) {
+            val caStr = String(caBytes).trim()
+            val caVal = caStr.toLongOrNull() ?: 0L
+            if ((caVal and CAPABILITY_VIDEO_OUT) == 0L) {
+                // Device does not have video out -> It is an audio speaker / smart clock
+                return true
+            }
+        }
+
+        // 3. If service is Google Cast and model name is missing or unknown, verify it's not a speaker
+        if (serviceType.contains("googlecast", ignoreCase = true)) {
+            // If Cast TXT attributes explicitly identify it as audio-only
+            val fnBytes = attributes["fn"]
+            if (fnBytes != null) {
+                val fnStr = String(fnBytes).lowercase()
+                for (kw in speakerKeywords) {
+                    if (fnStr.contains(kw)) return true
+                }
+            }
+        }
+
+        return false
     }
 
     private fun cleanTvName(name: String): String {
@@ -168,7 +248,6 @@ class GoogleTvDiscoveryManager(private val context: Context) {
         val current = _devices.value.toMutableList()
         val index = current.indexOfFirst { it.hostAddress == newDevice.hostAddress || it.id == newDevice.id }
         if (index != -1) {
-            // Keep paired status if already paired
             val existing = current[index]
             current[index] = newDevice.copy(isPaired = existing.isPaired || newDevice.isPaired)
         } else {

@@ -66,7 +66,6 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(connectionState) {
                         if (connectionState is RemoteConnectionState.Error) {
                             connectionErrorMessage = (connectionState as RemoteConnectionState.Error).message
-                            selectedTv = null
                         } else if (connectionState is RemoteConnectionState.Connected) {
                             connectionErrorMessage = null
                         }
@@ -79,14 +78,18 @@ class MainActivity : ComponentActivity() {
                             discoveryManager.markDevicePaired(pairedDevice.id)
                             showPairingDialog = false
                             selectedTv = pairedDevice
+                            pairingEngine.reset()
                             remoteEngine.connect(pairedDevice)
                         }
                     }
 
-                    if (connectionState is RemoteConnectionState.Connected && selectedTv != null) {
+                    // Resolve currently active connected device
+                    val activeConnectedDevice = (connectionState as? RemoteConnectionState.Connected)?.device ?: selectedTv
+
+                    if (connectionState is RemoteConnectionState.Connected && activeConnectedDevice != null) {
                         // Main Remote Control Screen
                         RemoteScreen(
-                            device = selectedTv!!,
+                            device = activeConnectedDevice,
                             connectionState = connectionState,
                             onSendKey = { key ->
                                 lifecycleScope.launch {
@@ -111,9 +114,11 @@ class MainActivity : ComponentActivity() {
                         )
                     } else {
                         // Discovery & Pairing Hub Screen
+                        val connectingDeviceId = (connectionState as? RemoteConnectionState.Connecting)?.device?.id
                         DiscoveryScreen(
                             devices = devices,
                             isScanning = isScanning,
+                            connectingDeviceId = connectingDeviceId,
                             errorMessage = connectionErrorMessage,
                             onStartScan = {
                                 discoveryManager.startDiscovery()
@@ -179,6 +184,13 @@ class MainActivity : ComponentActivity() {
                             onRetryPairing = {
                                 lifecycleScope.launch {
                                     pairingEngine.startPairing(selectedTv!!)
+                                }
+                            },
+                            onConnectDirectly = {
+                                showPairingDialog = false
+                                val tv = selectedTv ?: return@PairingDialog
+                                lifecycleScope.launch {
+                                    remoteEngine.connect(tv)
                                 }
                             },
                             onDismiss = {

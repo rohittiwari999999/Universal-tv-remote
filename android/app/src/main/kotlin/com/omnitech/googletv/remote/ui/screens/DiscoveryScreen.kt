@@ -33,6 +33,7 @@ import com.omnitech.googletv.remote.ui.theme.*
 fun DiscoveryScreen(
     devices: List<DiscoveredGoogleTv>,
     isScanning: Boolean,
+    connectingDeviceId: String? = null,
     errorMessage: String? = null,
     onStartScan: () -> Unit,
     onSelectDevice: (DiscoveredGoogleTv) -> Unit,
@@ -218,8 +219,10 @@ fun DiscoveryScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(devices) { tv ->
+                    val isConnecting = (connectingDeviceId == tv.id)
                     DeviceCard(
                         device = tv,
+                        isConnecting = isConnecting,
                         onClick = { onSelectDevice(tv) },
                         onForcePair = { onForcePairDevice(tv) },
                         onUnpair = { onUnpairDevice(tv) }
@@ -270,6 +273,7 @@ fun DiscoveryScreen(
 @Composable
 fun DeviceCard(
     device: DiscoveredGoogleTv,
+    isConnecting: Boolean = false,
     onClick: () -> Unit,
     onForcePair: () -> Unit,
     onUnpair: () -> Unit
@@ -380,19 +384,33 @@ fun DeviceCard(
                 if (device.isPaired) {
                     Button(
                         onClick = onClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                        enabled = !isConnecting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GoogleTvBlue,
+                            disabledContainerColor = GoogleTvBlue.copy(alpha = 0.6f)
+                        ),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f).height(40.dp)
+                        modifier = Modifier.weight(1f).height(42.dp)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Connect Remote", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        if (isConnecting) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Connecting...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Connect Remote", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
 
                     OutlinedButton(
                         onClick = onForcePair,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(40.dp),
+                        modifier = Modifier.height(42.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder)
                     ) {
                         Icon(Icons.Default.LockReset, contentDescription = null, tint = GoogleTvTextSecondary, modifier = Modifier.size(16.dp))

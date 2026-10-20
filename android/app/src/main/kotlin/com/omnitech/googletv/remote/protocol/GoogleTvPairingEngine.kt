@@ -5,6 +5,7 @@ import android.util.Log
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.model.PairingState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,15 +20,16 @@ import javax.net.ssl.SSLSocket
  * Executes the authentic, full Google TV / Android TV Remote v2 Polo Pairing Protocol (Port 6467).
  *
  * Sequence:
- * 1. TLS handshake with persistent X.509 client certificate on port 6467.
- * 2. Send OuterMessage(PairingRequest) -> TV answers with PairingRequestAck.
- * 3. Send OuterMessage(PairingOption: Hexadecimal 6 symbols, Input) -> TV answers with PairingOption.
- * 4. Send OuterMessage(PairingConfiguration: Hexadecimal 6 symbols, Input) -> TV answers with PairingConfigurationAck.
+ * 1. Wake-up retry ladder to handle TV Wi-Fi power-save sleep.
+ * 2. TLS handshake with persistent X.509 client certificate on port 6467.
+ * 3. Send OuterMessage(PairingRequest) -> TV answers with PairingRequestAck.
+ * 4. Send OuterMessage(PairingOption) -> TV answers with PairingOption.
+ * 5. Send OuterMessage(PairingConfiguration) -> TV answers with PairingConfigurationAck.
  *    ==> TV SCREEN IMMEDIATELY POPS UP THE 6-DIGIT HEX PAIRING CODE!
- * 5. User enters the 6-character code into the app.
- * 6. App computes SHA-256(ClientModulus + ClientExponent + ServerModulus + ServerExponent + PinTail).
- * 7. Send OuterMessage(PairingSecret: sha256_hash) -> TV verifies and answers with SecretAck.
- * 8. SUCCESS! TV is securely paired forever with this client certificate.
+ * 6. User enters the 6-character code into the app.
+ * 7. App computes SHA-256(ClientModulus + ClientExponent + ServerModulus + ServerExponent + PinTail).
+ * 8. Send OuterMessage(PairingSecret: sha256_hash) -> TV verifies and answers with SecretAck.
+ * 9. SUCCESS! TV is securely paired forever with this client certificate.
  */
 class GoogleTvPairingEngine(private val context: Context) {
 
@@ -54,18 +56,38 @@ class GoogleTvPairingEngine(private val context: Context) {
         try {
             closeExisting()
 
-            Log.d(TAG, "Initiating TLS connection to ${device.hostAddress}:${device.pairingPort}")
             val sslContext = GoogleTvCrypto.getOrCreateSslContext(context)
-            val socket = sslContext.socketFactory.createSocket() as SSLSocket
-            sslSocket = socket
 
-            // 10 second timeout for pairing socket
-            socket.connect(InetSocketAddress(device.hostAddress, device.pairingPort), 8000)
-            socket.soTimeout = 15000
-            socket.startHandshake()
+            // Retry ladder: TVs in Wi-Fi power-save need 1-2 SYN attempts to wake the Wi-Fi chip
+            var connectedSocket: SSLSocket? = null
+            var lastEx: Exception? = null
+
+            for (attempt in 1..3) {
+                try {
+                    val socket = sslContext.socketFactory.createSocket() as SSLSocket
+                    sslSocket = socket
+                    Log.d(TAG, "Connecting to ${device.hostAddress}:${device.pairingPort} (attempt $attempt/3)...")
+                    socket.connect(InetSocketAddress(device.hostAddress, device.pairingPort), 5000)
+                    socket.soTimeout = 15000
+                    socket.startHandshake()
+                    connectedSocket = socket
+                    break
+                } catch (e: Exception) {
+                    lastEx = e
+                    closeExisting()
+                    Log.w(TAG, "Pairing connect attempt $attempt failed: ${e.message}")
+                    if (attempt < 3) {
+                        delay(1200)
+                    }
+                }
+            }
+
+            if (connectedSocket == null) {
+                throw lastEx ?: IllegalStateException("Could not connect to Google TV on port ${device.pairingPort}")
+            }
 
             // Extract peer and local X.509 certificates for the crypto secret
-            val peerCerts = socket.session.peerCertificates
+            val peerCerts = connectedSocket.session.peerCertificates
             if (peerCerts.isNotEmpty() && peerCerts[0] is X509Certificate) {
                 serverCertificate = peerCerts[0] as X509Certificate
             } else {
@@ -74,14 +96,14 @@ class GoogleTvPairingEngine(private val context: Context) {
 
             clientCertificate = GoogleTvCrypto.getClientCertificate(context)
 
-            val inStream = socket.inputStream
-            val outStream = socket.outputStream
+            val inStream = connectedSocket.inputStream
+            val outStream = connectedSocket.outputStream
             inputStream = inStream
             outputStream = outStream
 
             // Phase 1: Send PairingRequest
             Log.d(TAG, "Step 1: Sending PairingRequest...")
-            val reqBytes = GoogleTvProtobuf.buildPairingRequest(clientName = "Google TV Remote (Android)")
+            val reqBytes = GoogleTvProtobuf.buildPairingRequest(serviceName = "atvremote", clientName = "atvremote")
             GoogleTvProtobuf.writeFramedMessage(outStream, reqBytes)
 
             // Read response: PairingRequestAck
@@ -123,10 +145,10 @@ class GoogleTvPairingEngine(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Pairing sequence failed: ${e.message}", e)
             val msg = when {
+                e.message?.contains("failed to connect", true) == true || e.message?.contains("ETIMEDOUT", true) == true ->
+                    "TV connection timed out on port ${device.pairingPort}.\nMake sure TV screen is ON (not in Standby) and on same Wi-Fi."
                 e.message?.contains("ECONNREFUSED", true) == true ->
-                    "TV refused connection on port ${device.pairingPort}. Ensure TV is ON and connected to same Wi-Fi."
-                e.message?.contains("ETIMEDOUT", true) == true ->
-                    "Connection timed out. Please check TV IP address (${device.hostAddress})."
+                    "TV refused pairing connection on port 6467. Ensure TV screen is awake."
                 else -> e.localizedMessage ?: "Pairing handshake failed"
             }
             _pairingState.value = PairingState.Error(msg)
