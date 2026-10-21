@@ -18,6 +18,7 @@ import com.omnitech.googletv.remote.discovery.GoogleTvDiscoveryManager
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.model.PairingState
 import com.omnitech.googletv.remote.model.RemoteConnectionState
+import com.omnitech.googletv.remote.model.TvKey
 import com.omnitech.googletv.remote.protocol.GoogleTvPairingEngine
 import com.omnitech.googletv.remote.protocol.GoogleTvRemoteEngine
 import com.omnitech.googletv.remote.ui.screens.DiscoveryScreen

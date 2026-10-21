@@ -156,15 +156,24 @@ class MainActivity : ComponentActivity() {
 import android.content.Context
 import android.hardware.ConsumerIrManager
 
+data class TvBrand(
+    val id: String,
+    val name: String,
+    val description: String,
+    val carrierFreq: Int = 38000,
+    val protocol: String = "NEC",
+    val codeHex: String = "0x707030CF"
+)
+
 class IrBlasterManager(private val context: Context) {
     private val consumerIrManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
 
     companion object {
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google TV)", 38000),
-            TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000),
-            TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000),
-            TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000)
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google TV)", 38000, "NEC", "0x707030CF"),
+            TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
+            TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
+            TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90")
         )
     }
 

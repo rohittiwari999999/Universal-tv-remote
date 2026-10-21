@@ -13,7 +13,9 @@ data class TvBrand(
     val id: String,
     val name: String,
     val description: String,
-    val carrierFreq: Int = 38000
+    val carrierFreq: Int = 38000,
+    val protocol: String = "NEC",
+    val codeHex: String = "0x707030CF"
 )
 
 data class IrTransmitResult(
@@ -43,17 +45,17 @@ class IrBlasterManager(private val context: Context) {
 
     companion object {
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google & Android TV)", 38000),
-            TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000),
-            TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000),
-            TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000),
-            TvBrand("xiaomi", "Mi / Xiaomi", "Xiaomi / Redmi TV NEC 38kHz", 38000),
-            TvBrand("oneplus", "OnePlus TV", "OnePlus TV NEC 38kHz", 38000),
-            TvBrand("tcl", "TCL TV", "TCL NEC 38kHz", 38000),
-            TvBrand("vu", "Vu TV", "Vu Smart TV NEC 38kHz", 38000),
-            TvBrand("realme", "Realme TV", "Realme Smart TV NEC 38kHz", 38000),
-            TvBrand("hisense", "Hisense TV", "Hisense NEC 38kHz", 38000),
-            TvBrand("panasonic", "Panasonic", "Panasonic 37kHz Power Code", 37000)
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google & Android TV)", 38000, "NEC", "0x707030CF"),
+            TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
+            TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
+            TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90"),
+            TvBrand("xiaomi", "Mi / Xiaomi", "Xiaomi / Redmi TV NEC 38kHz", 38000, "NEC", "0x00FF02FD"),
+            TvBrand("oneplus", "OnePlus TV", "OnePlus TV NEC 38kHz", 38000, "NEC", "0x00FF827D"),
+            TvBrand("tcl", "TCL TV", "TCL NEC 38kHz", 38000, "NEC", "0xF708FB04"),
+            TvBrand("vu", "Vu TV", "Vu Smart TV NEC 38kHz", 38000, "NEC", "0x4CB3807F"),
+            TvBrand("realme", "Realme TV", "Realme Smart TV NEC 38kHz", 38000, "NEC", "0x00FF827D"),
+            TvBrand("hisense", "Hisense TV", "Hisense NEC 38kHz", 38000, "NEC", "0xFB047788"),
+            TvBrand("panasonic", "Panasonic", "Panasonic 37kHz Power Code", 37000, "Panasonic", "0x40040100BCBD")
         )
     }
 
