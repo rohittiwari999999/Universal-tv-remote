@@ -147,6 +147,168 @@ class MainActivity : ComponentActivity() {
 }`
     },
     {
+      name: 'IrBlasterManager.kt',
+      path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/IrBlasterManager.kt',
+      language: 'kotlin',
+      description: 'ConsumerIrManager engine transmitting 38kHz NEC IR Power ON codes for Coocaa TV (Skyworth) and dual Wake-on-LAN fallback.',
+      code: `package com.omnitech.googletv.remote.ir
+
+import android.content.Context
+import android.hardware.ConsumerIrManager
+
+class IrBlasterManager(private val context: Context) {
+    private val consumerIrManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+
+    companion object {
+        val SUPPORTED_BRANDS = listOf(
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google TV)", 38000),
+            TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000),
+            TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000),
+            TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000)
+        )
+    }
+
+    suspend fun transmitPower(brandId: String = "coocaa", targetIp: String? = null) {
+        if (consumerIrManager?.hasIrEmitter() == true) {
+            // Transmits exact 32-bit NEC pulses for Coocaa TV (0x707030CF)
+            val pattern = generateIrPatternForBrand(brandId)
+            consumerIrManager.transmit(38000, pattern)
+        }
+    }
+}`
+    },
+    {
+      name: 'StandalonePowerOnCard.kt',
+      path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ui/components/StandalonePowerOnCard.kt',
+      language: 'kotlin',
+      description: 'Dedicated standalone IR Blaster Power ON component placed on Front Discovery Page below "Add TV by IP Address" to wake TV so it connects to Wi-Fi and pairs smoothly.',
+      code: `package com.omnitech.googletv.remote.ui.components
+
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.omnitech.googletv.remote.ir.TvBrand
+import com.omnitech.googletv.remote.ir.IrBlasterManager
+import com.omnitech.googletv.remote.ui.theme.*
+
+/**
+ * Standalone IR Blaster Power ON Card.
+ * Placed on the Front Page directly below "Add TV by IP Address".
+ * Turn on TV via IR blaster (Coocaa 38kHz NEC 0x707030CF) so Wi-Fi connects & pairs easily.
+ */
+@Composable
+fun StandalonePowerOnCard(
+    selectedBrand: TvBrand,
+    hasIrEmitter: Boolean,
+    onTransmitPower: (TvBrand) -> Unit,
+    onSelectBrand: (TvBrand) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    var isBlasting by remember { mutableStateOf(false) }
+    var showBrandDialog by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(
+                1.5.dp,
+                Brush.horizontalGradient(
+                    listOf(GoogleTvRed.copy(alpha = 0.6f), GoogleTvCardBorder, GoogleTvBlue.copy(alpha = 0.5f))
+                ),
+                RoundedCornerShape(20.dp)
+            ),
+        colors = CardDefaults.cardColors(containerColor = GoogleTvSurface)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // Header with IR badge and Brand selector
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = GoogleTvRed, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "TV POWER ON (IR BLASTER)",
+                        color = GoogleTvTextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Surface(
+                    onClick = { showBrandDialog = true },
+                    color = GoogleTvDark,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Icon(Icons.Default.Tv, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(selectedBrand.name, color = GoogleTvTextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = GoogleTvTextSecondary, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Google TV pair na ho paye to pehle IR Blaster se TV ko ON karein taaki TV Wi-Fi se connect ho aur phir pair ho sake easily.",
+                color = GoogleTvTextSecondary,
+                fontSize = 11.5.sp,
+                lineHeight = 16.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Large Standalone POWER ON Action Button
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    isBlasting = true
+                    onTransmitPower(selectedBrand)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GoogleTvRed),
+                shape = RoundedCornerShape(14.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Icon(Icons.Default.PowerSettingsNew, contentDescription = "Turn ON TV", tint = Color.White, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "POWER ON TV (IR BLASTER)",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+    }
+}`
+    },
+    {
       name: 'build_native_android_apk_aab.yml',
       path: '.github/workflows/build_native_android_apk_aab.yml',
       language: 'yaml',

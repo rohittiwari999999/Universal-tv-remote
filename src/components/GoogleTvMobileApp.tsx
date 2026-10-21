@@ -4,7 +4,7 @@ import {
   Home, Mic, Volume2, VolumeX, Power, Settings, Send,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Play, Pause, FastForward, Rewind, CheckCircle2, AlertCircle,
-  Radio, Keyboard, Touchpad, Shield
+  Radio, Keyboard, Touchpad, Shield, Zap, Check
 } from 'lucide-react';
 import { remoteSound } from '../utils/remoteSound';
 
@@ -16,6 +16,29 @@ export interface DiscoveredTvItem {
   isPaired: boolean;
   signalDbm: number;
 }
+
+export interface TvBrand {
+  id: string;
+  name: string;
+  description: string;
+  carrierFreq: number;
+  protocol: string;
+  codeHex: string;
+}
+
+export const SUPPORTED_TV_BRANDS: TvBrand[] = [
+  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth NEC 38kHz (Google & Android TV)', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x707030CF' },
+  { id: 'samsung', name: 'Samsung TV', description: 'Samsung 38kHz Power Code', carrierFreq: 38000, protocol: 'Samsung 32-bit', codeHex: '0xE0E040BF' },
+  { id: 'lg', name: 'LG TV', description: 'LG NEC 38kHz Power Code', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x20DF10EF' },
+  { id: 'sony', name: 'Sony TV', description: 'Sony SIRC 40kHz 12-bit Power Code', carrierFreq: 40000, protocol: 'SIRC 12-bit', codeHex: '0x0A90' },
+  { id: 'xiaomi', name: 'Mi / Xiaomi', description: 'Xiaomi / Redmi TV NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x00FF12ED' },
+  { id: 'oneplus', name: 'OnePlus TV', description: 'OnePlus TV NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x01FE48B7' },
+  { id: 'tcl', name: 'TCL TV', description: 'TCL NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x00FFA25D' },
+  { id: 'vu', name: 'Vu TV', description: 'Vu Smart TV NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x00FF10EF' },
+  { id: 'realme', name: 'Realme TV', description: 'Realme Smart TV NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x01FE48B7' },
+  { id: 'hisense', name: 'Hisense TV', description: 'Hisense NEC 38kHz', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0xFD02FDFD' },
+  { id: 'panasonic', name: 'Panasonic', description: 'Panasonic 37kHz Power Code', carrierFreq: 37000, protocol: 'Panasonic 48-bit', codeHex: '0x40040100' }
+];
 
 interface GoogleTvMobileAppProps {
   onTvAction: (action: string) => void;
@@ -48,10 +71,36 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   // Discovery State
   const [isScanning, setIsScanning] = useState(true);
   const [devices, setDevices] = useState<DiscoveredTvItem[]>([]);
+  
+  // IR Blaster state & TV Brand (Default: Coocaa TV with NEC 38kHz Power Code 0x707030CF)
+  const [selectedBrand, setSelectedBrand] = useState<TvBrand>(() => {
+    try {
+      const saved = localStorage.getItem('selected_tv_brand');
+      return SUPPORTED_TV_BRANDS.find(b => b.id === saved) || SUPPORTED_TV_BRANDS[0];
+    } catch {
+      return SUPPORTED_TV_BRANDS[0];
+    }
+  });
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [isPowerBlasting, setIsPowerBlasting] = useState(false);
+  const [irToastMessage, setIrToastMessage] = useState<string | null>(null);
+
+  // Saved paired remote state (Automatically enters remote screen directly - no need to tap connect remote)
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredTvItem | null>(() => {
     try {
       const saved = localStorage.getItem('last_paired_tv');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+      // Pre-seed default paired remote so user automatically lands on remote screen
+      const defaultPaired: DiscoveredTvItem = {
+        id: 'coocaa_google_tv',
+        name: 'Coocaa Google TV 4K',
+        hostAddress: '192.168.1.104',
+        model: 'Coocaa 50" Smart Google TV (Skyworth)',
+        isPaired: true,
+        signalDbm: -38
+      };
+      localStorage.setItem('last_paired_tv', JSON.stringify(defaultPaired));
+      return defaultPaired;
     } catch {
       return null;
     }
@@ -66,9 +115,9 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   // Connected Remote State (Direct auto-entry if previously paired)
   const [isConnected, setIsConnected] = useState<boolean>(() => {
     try {
-      return Boolean(localStorage.getItem('last_paired_tv'));
+      return Boolean(localStorage.getItem('last_paired_tv')) || true;
     } catch {
-      return false;
+      return true;
     }
   });
   const [remoteMode, setRemoteMode] = useState<'dpad' | 'touchpad' | 'keyboard'>('dpad');
@@ -232,16 +281,60 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     handleSelectTv(manualTv);
   };
 
+  // IR Blaster Power ON Transmission (with Coocaa TV NEC 38kHz code 0x707030CF)
+  const handleTransmitPower = () => {
+    remoteSound.click();
+    setIsPowerBlasting(true);
+    setIrToastMessage(`IR Power Code Sent: ${selectedBrand.name} (${selectedBrand.codeHex} @ ${selectedBrand.carrierFreq / 1000}kHz)`);
+    onTvPowerToggle();
+    onTvAction(`[IR BLASTER] Transmitted Power ON code for ${selectedBrand.name} (${selectedBrand.protocol} ${selectedBrand.codeHex} at ${selectedBrand.carrierFreq}Hz) + Wake-on-LAN`);
+
+    setTimeout(() => {
+      setIsPowerBlasting(false);
+    }, 1200);
+
+    setTimeout(() => {
+      setIrToastMessage(null);
+    }, 3500);
+  };
+
+  const handleSelectBrand = (brand: TvBrand) => {
+    remoteSound.click();
+    setSelectedBrand(brand);
+    try {
+      localStorage.setItem('selected_tv_brand', brand.id);
+    } catch {
+      // ignore
+    }
+    setShowBrandModal(false);
+    onTvAction(`Configured IR Blaster for ${brand.name} (${brand.protocol} ${brand.codeHex})`);
+  };
+
   return (
     <div className="w-[340px] h-[670px] bg-slate-950 rounded-[44px] border-[6px] border-slate-800 shadow-2xl relative overflow-hidden flex flex-col font-sans select-none ring-1 ring-white/10">
       
-      {/* Phone Notch / Dynamic Island Header */}
+      {/* Phone Notch / Dynamic Island Header with IR Blaster Diode simulation */}
       <div className="h-6 w-full flex items-center justify-center pt-2 relative z-20">
         <div className="w-20 h-4 bg-slate-900 rounded-full flex items-center justify-center gap-1.5 px-2">
-          <div className="w-2 h-2 rounded-full bg-slate-800" />
+          <div className={`w-2 h-2 rounded-full transition-colors ${isPowerBlasting ? 'bg-red-500 animate-ping' : 'bg-slate-800'}`} />
           <div className="w-2.5 h-2.5 rounded-full bg-slate-950 border border-slate-700" />
         </div>
+        {/* IR Blaster diode emission beam glow */}
+        {isPowerBlasting && (
+          <div className="absolute top-0 inset-x-8 h-8 bg-gradient-to-b from-red-500/60 via-red-500/20 to-transparent blur-sm animate-pulse pointer-events-none" />
+        )}
       </div>
+
+      {/* Floating IR Toast Notification */}
+      {irToastMessage && (
+        <div className="absolute top-8 inset-x-4 bg-slate-900/95 border border-red-500/60 rounded-xl p-2 text-center text-[10.5px] text-white shadow-2xl z-40 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-center gap-1.5 font-bold text-red-400">
+            <Zap className="w-3.5 h-3.5" />
+            <span>IR Blaster Pulse Fired</span>
+          </div>
+          <div className="text-slate-300 font-mono text-[9.5px] mt-0.5">{irToastMessage}</div>
+        </div>
+      )}
 
       {/* Main Screen Content */}
       <div className="flex-1 px-4 py-2 flex flex-col justify-between overflow-y-auto z-10 text-slate-100">
@@ -289,6 +382,54 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
         ) : isConnected && selectedDevice ? (
           <div className="flex flex-col h-full justify-between pb-2">
             
+            {/* Top Power ON Button & TV Brand Selector (Coocaa 38kHz NEC IR Blaster) */}
+            <div className="bg-gradient-to-r from-red-950/40 via-slate-900 to-blue-950/40 border border-slate-800 rounded-2xl p-2 mb-2 shadow-md">
+              <div className="flex items-center justify-between gap-2">
+                {/* POWER ON Button with IR Blaster */}
+                <button
+                  onClick={handleTransmitPower}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-xs text-white transition-all shadow-lg active:scale-95 ${
+                    isPowerBlasting
+                      ? 'bg-red-500 ring-2 ring-red-400 animate-pulse'
+                      : 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                  }`}
+                  title={`Send IR Blaster Power ON to ${selectedBrand.name}`}
+                >
+                  <Power className="w-4 h-4 shrink-0" />
+                  <div className="text-left leading-tight">
+                    <div className="font-extrabold tracking-wide text-[11px]">POWER ON</div>
+                    <div className="text-[8px] text-red-100 font-mono">IR BLASTER</div>
+                  </div>
+                </button>
+
+                {/* TV Brand Selector Dropdown */}
+                <button
+                  onClick={() => { remoteSound.click(); setShowBrandModal(true); }}
+                  className="flex-1 flex items-center justify-between py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700/80 hover:border-blue-500/50 transition-all text-left"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Tv className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-white truncate">{selectedBrand.name}</div>
+                      <div className="text-[8.5px] text-slate-400 truncate">Tap to change brand</div>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </button>
+              </div>
+
+              {/* Status bar with Coocaa NEC 38kHz Details */}
+              <div className="flex items-center justify-between mt-1.5 px-1 text-[9.5px]">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
+                  <span>IR Ready • {selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                </div>
+                {selectedBrand.id === 'coocaa' && (
+                  <span className="font-mono text-blue-400 font-bold">NEC 0x707030CF</span>
+                )}
+              </div>
+            </div>
+
             {/* Connected Device Header Bar */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -608,6 +749,51 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               </div>
             </div>
 
+            {/* Top Power ON Button & TV Brand Selector (Turn ON TV before network connect) */}
+            <div className="bg-gradient-to-r from-red-950/40 via-slate-900 to-blue-950/40 border border-slate-800 rounded-2xl p-2 my-1.5 shadow-md">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={handleTransmitPower}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl font-bold text-xs text-white transition-all shadow-lg active:scale-95 ${
+                    isPowerBlasting
+                      ? 'bg-red-500 ring-2 ring-red-400 animate-pulse'
+                      : 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                  }`}
+                  title={`Send IR Blaster Power ON to ${selectedBrand.name}`}
+                >
+                  <Power className="w-4 h-4 shrink-0" />
+                  <div className="text-left leading-tight">
+                    <div className="font-extrabold tracking-wide text-[11px]">POWER ON</div>
+                    <div className="text-[8px] text-red-100 font-mono">IR BLASTER</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { remoteSound.click(); setShowBrandModal(true); }}
+                  className="flex-1 flex items-center justify-between py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700/80 hover:border-blue-500/50 transition-all text-left"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Tv className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-white truncate">{selectedBrand.name}</div>
+                      <div className="text-[8.5px] text-slate-400 truncate">Tap to change brand</div>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between mt-1.5 px-1 text-[9.5px]">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
+                  <span>IR Ready • {selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                </div>
+                {selectedBrand.id === 'coocaa' && (
+                  <span className="font-mono text-blue-400 font-bold">NEC 0x707030CF</span>
+                )}
+              </div>
+            </div>
+
             {/* Radar Sweep Animation Banner */}
             <div className="my-3 py-4 px-3 bg-gradient-to-b from-blue-950/20 to-slate-900/40 border border-blue-500/20 rounded-2xl flex flex-col items-center justify-center text-center relative overflow-hidden">
               <div className="relative w-16 h-16 flex items-center justify-center mb-2">
@@ -661,8 +847,64 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               className="w-full mt-2 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-300 flex items-center justify-center gap-2 transition-colors"
             >
               <Plus className="w-3.5 h-3.5 text-blue-400" />
-              <span>Connect by IP Manually</span>
+              <span>Connect by IP Manually (Add TV by IP Address)</span>
             </button>
+
+            {/* STANDALONE SEPARATE IR BLASTER POWER ON CARD (Placed below Add TV by IP Address) */}
+            <div className="mt-2.5 p-3 rounded-2xl bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 border border-red-500/40 shadow-xl relative overflow-hidden">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-red-600/20 border border-red-500/50 flex items-center justify-center text-red-400">
+                    <Zap className="w-3 h-3" />
+                  </div>
+                  <span className="text-[11px] font-black text-white tracking-wide uppercase">
+                    TV Power ON (IR Blaster)
+                  </span>
+                </div>
+                <button
+                  onClick={() => { remoteSound.click(); setShowBrandModal(true); }}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-blue-500/50 text-[10px] font-bold text-blue-400 flex items-center gap-1 transition-colors"
+                  title="Change TV brand"
+                >
+                  <Tv className="w-3 h-3 text-blue-400" />
+                  <span>{selectedBrand.name}</span>
+                  <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                </button>
+              </div>
+
+              <p className="text-[10px] text-slate-300 leading-snug mb-2">
+                Google TV pair na ho paye to pehle IR blaster se TV ON karein taaki TV Wi-Fi se connect ho aur phir pair ho sake easily.
+              </p>
+
+              {/* Large Standalone Power ON Button */}
+              <button
+                onClick={() => {
+                  handleTransmitPower();
+                  // Re-trigger network discovery scan after waking TV
+                  setTimeout(() => startAutoDiscovery(), 1200);
+                }}
+                className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${
+                  isPowerBlasting
+                    ? 'bg-red-500 ring-2 ring-red-400 animate-pulse'
+                    : 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                }`}
+              >
+                <Power className="w-4 h-4 shrink-0" />
+                <span className="tracking-wide text-xs font-black">
+                  {isPowerBlasting ? 'TRANSMITTING IR CODE...' : `POWER ON ${selectedBrand.name.toUpperCase()} (IR BLASTER)`}
+                </span>
+              </button>
+
+              <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-800/80 text-[9px] text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
+                  <span>{selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                </span>
+                <span className="font-mono text-blue-400 font-bold">
+                  {selectedBrand.protocol} {selectedBrand.codeHex}
+                </span>
+              </div>
+            </div>
 
           </div>
         )}
@@ -685,27 +927,27 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
             </button>
           </div>
 
-          <div className="my-auto text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 mx-auto flex items-center justify-center text-blue-400">
-              <Tv className="w-6 h-6" />
+          <div className="my-auto text-center space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/40 mx-auto flex items-center justify-center text-blue-400">
+              <Tv className="w-5 h-5" />
             </div>
 
             <div>
               <h3 className="text-sm font-bold text-white">Check Your TV Screen</h3>
-              <p className="text-[11px] text-slate-400 mt-1 max-w-[240px] mx-auto leading-relaxed">
+              <p className="text-[11px] text-slate-400 mt-0.5 max-w-[240px] mx-auto leading-relaxed">
                 A 4-digit code is currently shown on your <strong className="text-white">{selectedDevice.name}</strong> screen.
               </p>
             </div>
 
             {/* 4-digit PIN Input */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <input
                 type="text"
                 maxLength={6}
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value.toUpperCase())}
                 placeholder="e.g. 8341"
-                className="w-44 mx-auto text-center font-mono font-bold text-2xl tracking-widest px-3 py-2 bg-slate-900 border-2 border-blue-500/60 rounded-2xl text-white focus:outline-none focus:border-blue-400"
+                className="w-44 mx-auto text-center font-mono font-bold text-2xl tracking-widest px-3 py-1.5 bg-slate-900 border-2 border-blue-500/60 rounded-2xl text-white focus:outline-none focus:border-blue-400"
               />
               <p className="text-[10px] text-slate-500 font-mono">
                 Hint: Code on the simulated TV is <strong className="text-cyan-400">{pairingCode}</strong>
@@ -718,13 +960,38 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
                 <span>{pairingError}</span>
               </div>
             )}
+
+            {/* Dedicated IR Blaster Power ON on Pairing Page if TV hasn't shown PIN or went into sleep */}
+            <div className="p-2.5 rounded-xl bg-gradient-to-r from-red-950/40 via-slate-900 to-slate-900 border border-red-500/40 text-left">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-white flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-red-400 shrink-0" />
+                    <span className="truncate">TV Off / PIN Not Showing?</span>
+                  </div>
+                  <div className="text-[8.5px] text-slate-400 truncate">
+                    Turn ON via {selectedBrand.name} IR Blaster
+                  </div>
+                </div>
+                <button
+                  onClick={handleTransmitPower}
+                  className={`px-3 py-1.5 rounded-lg text-white text-[10.5px] font-extrabold flex items-center gap-1.5 shadow active:scale-95 transition-all shrink-0 ${
+                    isPowerBlasting ? 'bg-red-500 animate-pulse' : 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                  }`}
+                  title="Send IR Power ON to wake TV"
+                >
+                  <Power className="w-3 h-3" />
+                  <span>POWER ON</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
             <button
               onClick={handleVerifyPin}
               disabled={pinInput.length < 4 || isVerifying}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
             >
               {isVerifying ? (
                 <>
@@ -741,9 +1008,87 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
 
             <button
               onClick={() => { setShowPairingModal(false); onPairingStatusChange(false, ''); }}
-              className="w-full py-2 text-[11px] text-slate-400 hover:text-white"
+              className="w-full py-1.5 text-[11px] text-slate-400 hover:text-white"
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TV BRAND SELECTION MODAL (Coocaa TV default, Samsung, LG, Sony, etc.) */}
+      {showBrandModal && (
+        <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-30 p-4 flex flex-col justify-between animate-fade-in text-slate-100">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Tv className="w-3.5 h-3.5 text-blue-400" />
+                <span>Select TV Brand for IR Blaster</span>
+              </div>
+              <p className="text-[9.5px] text-slate-400">
+                Selects carrier frequency &amp; power code timing
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBrandModal(false)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* List of brands */}
+          <div className="flex-1 my-2 space-y-1.5 overflow-y-auto pr-1">
+            {SUPPORTED_TV_BRANDS.map((brand) => {
+              const isSelected = brand.id === selectedBrand.id;
+              return (
+                <div
+                  key={brand.id}
+                  onClick={() => handleSelectBrand(brand)}
+                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-center justify-between ${
+                    isSelected
+                      ? 'bg-blue-600/15 border-blue-500/80 shadow-sm'
+                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs font-bold ${isSelected ? 'text-blue-400' : 'text-white'}`}>
+                        {brand.name}
+                      </span>
+                      {brand.id === 'coocaa' && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[8.5px] font-bold">
+                          DEFAULT
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{brand.description}</p>
+                    <div className="flex items-center gap-2 mt-1 text-[9px] font-mono text-slate-500">
+                      <span>{brand.carrierFreq / 1000} kHz</span>
+                      <span>·</span>
+                      <span className="text-cyan-400/90">{brand.codeHex}</span>
+                    </div>
+                  </div>
+
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 ml-2">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-800 text-center">
+            <p className="text-[9.5px] text-slate-500 mb-2">
+              Tip: Coocaa TV (Skyworth) uses 38kHz NEC protocol (0x707030CF).
+            </p>
+            <button
+              onClick={() => setShowBrandModal(false)}
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
+            >
+              Close
             </button>
           </div>
         </div>

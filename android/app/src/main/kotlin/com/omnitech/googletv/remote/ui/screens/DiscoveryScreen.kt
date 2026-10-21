@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Dialog
 import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ui.components.TopPowerBrandBar
+import com.omnitech.googletv.remote.ui.components.StandalonePowerOnCard
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.ui.theme.*
 
@@ -249,6 +250,16 @@ fun DiscoveryScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Add TV by IP Address", color = GoogleTvTextPrimary, fontSize = 14.sp)
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Standalone IR Blaster TV Power ON Card below Add TV by IP Address
+                    StandalonePowerOnCard(
+                        selectedBrand = selectedBrand,
+                        hasIrEmitter = hasIrEmitter,
+                        onTransmitPower = onTransmitPower,
+                        onSelectBrand = onSelectBrand
+                    )
                 }
             }
         } else {
@@ -288,6 +299,31 @@ fun DiscoveryScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Add TV by IP Address button
+            OutlinedButton(
+                onClick = { showManualDialog = true },
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = GoogleTvSurface),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder),
+                modifier = Modifier.fillMaxWidth().height(42.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add TV by IP Address", color = GoogleTvTextPrimary, fontSize = 13.sp)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Standalone IR Blaster TV Power ON Card below Add TV by IP Address
+            StandalonePowerOnCard(
+                selectedBrand = selectedBrand,
+                hasIrEmitter = hasIrEmitter,
+                onTransmitPower = onTransmitPower,
+                onSelectBrand = onSelectBrand
+            )
         }
     }
 
