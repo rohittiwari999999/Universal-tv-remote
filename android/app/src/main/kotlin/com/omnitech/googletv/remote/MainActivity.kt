@@ -24,6 +24,7 @@ import com.omnitech.googletv.remote.protocol.GoogleTvRemoteEngine
 import com.omnitech.googletv.remote.ui.screens.DiscoveryScreen
 import com.omnitech.googletv.remote.ui.screens.PairingDialog
 import android.widget.Toast
+import com.omnitech.googletv.remote.ir.CoocaaIrController
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ui.screens.RemoteScreen
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var pairingEngine: GoogleTvPairingEngine
     private lateinit var remoteEngine: GoogleTvRemoteEngine
     private lateinit var irBlasterManager: IrBlasterManager
+    private lateinit var coocaaIrController: CoocaaIrController
 
     private val crashHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Caught uncaught coroutine exception: ${throwable.message}", throwable)
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
             pairingEngine = GoogleTvPairingEngine(this)
             remoteEngine = GoogleTvRemoteEngine(this)
             irBlasterManager = IrBlasterManager(this)
+            coocaaIrController = CoocaaIrController(this)
         } catch (e: Exception) {
             Log.e(TAG, "Initialization error: ${e.message}", e)
         }
@@ -96,24 +99,33 @@ class MainActivity : ComponentActivity() {
                         var showPairingDialog by remember { mutableStateOf(false) }
                         var connectionErrorMessage by remember { mutableStateOf<String?>(null) }
 
-                        // IR Blaster state & TV Brand (Default: Coocaa TV with NEC 38kHz Power Code)
-                        val hasIrEmitter = remember { irBlasterManager.hasIrEmitter() }
+                        // IR Blaster state & TV Brand (Default: Coocaa TV with 38.4kHz Power Code)
+                        val hasIrEmitter = remember { coocaaIrController.hasIrBlaster() || irBlasterManager.hasIrEmitter() }
                         var selectedBrand by remember { mutableStateOf(irBlasterManager.getSelectedBrand()) }
 
                         // Function to transmit Power ON via IR Blaster and Network
                         val transmitPowerAction: (TvBrand) -> Unit = { brand ->
                             lifecycleScope.launch(crashHandler) {
-                                val targetIp = (connectionState as? RemoteConnectionState.Connected)?.device?.hostAddress
-                                    ?: selectedTv?.hostAddress
-                                val result = irBlasterManager.transmitPower(
-                                    brandId = brand.id,
-                                    targetIp = targetIp
-                                )
+                                if (brand.id.equals("coocaa", ignoreCase = true)) {
+                                    if (coocaaIrController.hasIrBlaster()) {
+                                        coocaaIrController.sendPowerOnSignal()
+                                        Toast.makeText(this@MainActivity, "Coocaa TV Power ON IR signal sent (38.4 kHz)!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(this@MainActivity, "Aapke phone me IR Blaster nahi hai!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    val targetIp = (connectionState as? RemoteConnectionState.Connected)?.device?.hostAddress
+                                        ?: selectedTv?.hostAddress
+                                    val result = irBlasterManager.transmitPower(
+                                        brandId = brand.id,
+                                        targetIp = targetIp
+                                    )
+                                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
+                                }
                                 // If already connected to Google TV, also send remote key
                                 if (connectionState is RemoteConnectionState.Connected) {
                                     remoteEngine.sendKey(TvKey.POWER)
                                 }
-                                Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
                             }
                         }
 

@@ -45,7 +45,7 @@ class IrBlasterManager(private val context: Context) {
 
     companion object {
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google & Android TV)", 38000, "NEC", "0x707030CF"),
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38.4kHz (Google & Android TV)", 38400, "NEC", "0x707030CF"),
             TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
             TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
             TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90"),
@@ -146,9 +146,8 @@ class IrBlasterManager(private val context: Context) {
     private fun generateIrPatternForBrand(brandId: String): IntArray {
         return when (brandId.lowercase()) {
             "coocaa" -> {
-                // Coocaa / Skyworth Power: 0x707030CF (NEC Protocol)
-                // Transmits primary code and alternate pulse for maximum model coverage
-                encodeNec32(0x707030CF.toInt())
+                // Coocaa / Skyworth 68-pulse IR timing pattern (38.4 kHz)
+                CoocaaIrController.COOCAA_POWER_PATTERN
             }
             "samsung" -> {
                 // Samsung Power: 0xE0E040BF

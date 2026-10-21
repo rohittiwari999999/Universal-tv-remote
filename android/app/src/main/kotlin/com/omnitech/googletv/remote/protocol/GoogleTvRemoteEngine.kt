@@ -149,16 +149,23 @@ class GoogleTvRemoteEngine(private val context: Context) {
      * Sends a Key event (DPad, Home, Back, Volume, Power, etc.) to the Google TV.
      */
     suspend fun sendKey(key: TvKey) = withContext(Dispatchers.IO) {
+        sendKey(key.code)
+    }
+
+    /**
+     * Sends raw Android KeyCode directly to Google TV.
+     */
+    suspend fun sendKey(keyCode: Int) = withContext(Dispatchers.IO) {
         val out = outputStream ?: return@withContext
         try {
             // Direction 3 = SHORT press
-            val keyBytes = GoogleTvProtobuf.buildRemoteKeyInject(key.code, direction = 3)
+            val keyBytes = GoogleTvProtobuf.buildRemoteKeyInject(keyCode, direction = 3)
             synchronized(out) {
                 GoogleTvProtobuf.writeFramedMessage(out, keyBytes)
             }
-            Log.d(TAG, "Sent key ${key.label} (code=${key.code}) to Google TV")
+            Log.d(TAG, "Sent key code=$keyCode to Google TV")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to send key ${key.name}: ${e.message}")
+            Log.e(TAG, "Failed to send key code $keyCode: ${e.message}")
         }
     }
 

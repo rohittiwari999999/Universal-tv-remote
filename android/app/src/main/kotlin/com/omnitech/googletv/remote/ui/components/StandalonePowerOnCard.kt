@@ -5,8 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ui.theme.*
@@ -33,11 +32,10 @@ import kotlinx.coroutines.launch
 
 /**
  * Standalone IR Blaster Power ON Card.
- * Specially designed for the Front Page (Discovery / Pairing) directly below
- * "Add TV by IP Address".
+ * Positioned on the Front Page (Discovery / Pairing) directly below "Add TV by IP Address".
  *
  * Use-case: When Google TV is off or in deep standby, it disconnects from Wi-Fi
- * and cannot pair. Tap POWER ON to send an IR blaster beam (e.g. Coocaa 38kHz NEC),
+ * and cannot pair. Tap POWER ON to send an IR blaster beam (e.g. Coocaa 38.4kHz Skyworth Raw),
  * waking the TV so it connects to Wi-Fi and pairs smoothly.
  */
 @Composable
@@ -53,6 +51,13 @@ fun StandalonePowerOnCard(
     var isBlasting by remember { mutableStateOf(false) }
     var showBrandDialog by remember { mutableStateOf(false) }
     var showSuccessToast by remember { mutableStateOf(false) }
+
+    val displayProtocol = remember(selectedBrand) {
+        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "Skyworth Raw" else "NEC"
+    }
+    val displayCode = remember(selectedBrand) {
+        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "38.4 kHz Raw Pattern" else "${selectedBrand.carrierFreq / 1000} kHz"
+    }
 
     Card(
         modifier = modifier
@@ -232,7 +237,7 @@ fun StandalonePowerOnCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "IR Sent: ${selectedBrand.name} ${selectedBrand.protocol} (${selectedBrand.carrierFreq / 1000} kHz). TV will connect to Wi-Fi now!",
+                                text = "IR Sent: ${selectedBrand.name} $displayProtocol ($displayCode). TV will connect to Wi-Fi now!",
                                 color = GoogleTvTextPrimary,
                                 fontSize = 11.sp
                             )
@@ -265,7 +270,7 @@ fun StandalonePowerOnCard(
                 }
 
                 Text(
-                    text = "${selectedBrand.protocol} • ${selectedBrand.codeHex}",
+                    text = "$displayProtocol • $displayCode",
                     color = GoogleTvBlue,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -274,104 +279,98 @@ fun StandalonePowerOnCard(
         }
     }
 
-    // Brand Selection Dialog (Default: Coocaa TV with NEC 38kHz)
+    // Brand Selection Dialog (Uses standard Material3 AlertDialog with vertical scroll - 100% compile safe)
     if (showBrandDialog) {
-        Dialog(onDismissRequest = { showBrandDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, GoogleTvCardBorder, RoundedCornerShape(20.dp)),
-                colors = CardDefaults.cardColors(containerColor = GoogleTvSurface)
-            ) {
+        val brands = remember { IrBlasterManager.SUPPORTED_BRANDS }
+        AlertDialog(
+            onDismissRequest = { showBrandDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Tv, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Select TV Brand", color = GoogleTvTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(onClick = { showBrandDialog = false }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = GoogleTvTextSecondary)
+                    }
+                }
+            },
+            text = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp)
+                        .heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Tv, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Select TV Brand", color = GoogleTvTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                        IconButton(onClick = { showBrandDialog = false }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = GoogleTvTextSecondary)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     Text(
-                        text = "Configures carrier frequency and power IR timing for your TV model:",
+                        text = "Configures carrier frequency (e.g. Coocaa 38.4 kHz Raw) for your TV model:",
                         color = GoogleTvTextSecondary,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    val brands = remember { IrBlasterManager.SUPPORTED_BRANDS }
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 300.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(brands) { brand ->
-                            val isSelected = (brand.id == selectedBrand.id)
-                            Surface(
-                                onClick = {
-                                    onSelectBrand(brand)
-                                    showBrandDialog = false
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) GoogleTvBlue.copy(alpha = 0.18f) else GoogleTvDark,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) GoogleTvBlue else GoogleTvCardBorder
-                                ),
-                                modifier = Modifier.fillMaxWidth()
+                    brands.forEach { brand ->
+                        val isSelected = (brand.id == selectedBrand.id)
+                        Surface(
+                            onClick = {
+                                onSelectBrand(brand)
+                                showBrandDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) GoogleTvBlue.copy(alpha = 0.18f) else GoogleTvDark,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) GoogleTvBlue else GoogleTvCardBorder
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(brand.name, color = GoogleTvTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                            if (brand.id == "coocaa") {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Surface(
-                                                    color = GoogleTvBlue,
-                                                    shape = RoundedCornerShape(4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "DEFAULT",
-                                                        color = Color.White,
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                                    )
-                                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(brand.name, color = GoogleTvTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        if (brand.id == "coocaa") {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = GoogleTvBlue,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "DEFAULT 38.4kHz",
+                                                    color = Color.White,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
                                             }
                                         }
-                                        Text(brand.description, color = GoogleTvTextSecondary, fontSize = 11.sp)
                                     }
+                                    Text(brand.description, color = GoogleTvTextSecondary, fontSize = 11.sp)
+                                }
 
-                                    if (isSelected) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(18.dp))
-                                    }
+                                if (isSelected) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = GoogleTvBlue, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
                     }
                 }
-            }
-        }
+            },
+            confirmButton = {},
+            containerColor = GoogleTvSurface,
+            shape = RoundedCornerShape(20.dp)
+        )
     }
 }

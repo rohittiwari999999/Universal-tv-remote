@@ -27,7 +27,7 @@ export interface TvBrand {
 }
 
 export const SUPPORTED_TV_BRANDS: TvBrand[] = [
-  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth NEC 38kHz (Google & Android TV)', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x707030CF' },
+  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth 68-pulse IR (38.4 kHz)', carrierFreq: 38400, protocol: 'NEC 38.4kHz 68-pulse', codeHex: '0x707030CF' },
   { id: 'samsung', name: 'Samsung TV', description: 'Samsung 38kHz Power Code', carrierFreq: 38000, protocol: 'Samsung 32-bit', codeHex: '0xE0E040BF' },
   { id: 'lg', name: 'LG TV', description: 'LG NEC 38kHz Power Code', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x20DF10EF' },
   { id: 'sony', name: 'Sony TV', description: 'Sony SIRC 40kHz 12-bit Power Code', carrierFreq: 40000, protocol: 'SIRC 12-bit', codeHex: '0x0A90' },
