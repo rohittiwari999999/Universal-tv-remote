@@ -31,6 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.omnitech.googletv.remote.ir.TvBrand
+import com.omnitech.googletv.remote.ir.IrBlasterManager
+import com.omnitech.googletv.remote.ui.components.TopPowerBrandBar
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.ui.theme.*
 
@@ -48,7 +51,11 @@ fun DiscoveryScreen(
     onResetAllSettings: () -> Unit = {},
     onAddManualIp: (String) -> Unit = {},
     onDismissError: () -> Unit = {},
-    onShowSplash: () -> Unit = {}
+    onShowSplash: () -> Unit = {},
+    selectedBrand: TvBrand = IrBlasterManager.SUPPORTED_BRANDS.first(),
+    hasIrEmitter: Boolean = false,
+    onTransmitPower: (TvBrand) -> Unit = {},
+    onSelectBrand: (TvBrand) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showManualDialog by remember { mutableStateOf(false) }
@@ -154,6 +161,16 @@ fun DiscoveryScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Top Power ON Button & TV Brand Selector (Coocaa 38kHz NEC IR Blaster)
+        TopPowerBrandBar(
+            selectedBrand = selectedBrand,
+            hasIrEmitter = hasIrEmitter,
+            onTransmitPower = onTransmitPower,
+            onSelectBrand = onSelectBrand
+        )
 
         // Connection Error Alert Banner
         if (!errorMessage.isNullOrBlank()) {

@@ -22,6 +22,9 @@ import com.omnitech.googletv.remote.protocol.GoogleTvPairingEngine
 import com.omnitech.googletv.remote.protocol.GoogleTvRemoteEngine
 import com.omnitech.googletv.remote.ui.screens.DiscoveryScreen
 import com.omnitech.googletv.remote.ui.screens.PairingDialog
+import android.widget.Toast
+import com.omnitech.googletv.remote.ir.IrBlasterManager
+import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ui.screens.RemoteScreen
 import com.omnitech.googletv.remote.ui.screens.SplashScreen
 import com.omnitech.googletv.remote.ui.theme.GoogleTvDark
@@ -35,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var discoveryManager: GoogleTvDiscoveryManager
     private lateinit var pairingEngine: GoogleTvPairingEngine
     private lateinit var remoteEngine: GoogleTvRemoteEngine
+    private lateinit var irBlasterManager: IrBlasterManager
 
     private val crashHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Caught uncaught coroutine exception: ${throwable.message}", throwable)
@@ -57,6 +61,7 @@ class MainActivity : ComponentActivity() {
             discoveryManager = GoogleTvDiscoveryManager(this)
             pairingEngine = GoogleTvPairingEngine(this)
             remoteEngine = GoogleTvRemoteEngine(this)
+            irBlasterManager = IrBlasterManager(this)
         } catch (e: Exception) {
             Log.e(TAG, "Initialization error: ${e.message}", e)
         }
@@ -89,6 +94,33 @@ class MainActivity : ComponentActivity() {
                         var userNavigatedToDiscovery by remember { mutableStateOf(false) }
                         var showPairingDialog by remember { mutableStateOf(false) }
                         var connectionErrorMessage by remember { mutableStateOf<String?>(null) }
+
+                        // IR Blaster state & TV Brand (Default: Coocaa TV with NEC 38kHz Power Code)
+                        val hasIrEmitter = remember { irBlasterManager.hasIrEmitter() }
+                        var selectedBrand by remember { mutableStateOf(irBlasterManager.getSelectedBrand()) }
+
+                        // Function to transmit Power ON via IR Blaster and Network
+                        val transmitPowerAction: (TvBrand) -> Unit = { brand ->
+                            lifecycleScope.launch(crashHandler) {
+                                val targetIp = (connectionState as? RemoteConnectionState.Connected)?.device?.hostAddress
+                                    ?: selectedTv?.hostAddress
+                                val result = irBlasterManager.transmitPower(
+                                    brandId = brand.id,
+                                    targetIp = targetIp
+                                )
+                                // If already connected to Google TV, also send remote key
+                                if (connectionState is RemoteConnectionState.Connected) {
+                                    remoteEngine.sendKey(TvKey.POWER)
+                                }
+                                Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                        val selectBrandAction: (TvBrand) -> Unit = { brand ->
+                            irBlasterManager.setSelectedBrand(brand.id)
+                            selectedBrand = brand
+                            Toast.makeText(this@MainActivity, "Selected ${brand.name} for IR Blaster", Toast.LENGTH_SHORT).show()
+                        }
 
                         // Automatically connect to saved paired TV on launch once splash screen finishes
                         LaunchedEffect(showSplashScreen) {
@@ -172,6 +204,10 @@ class MainActivity : ComponentActivity() {
                                         pairingEngine.startPairing(activeConnectedDevice)
                                     }
                                 },
+                                selectedBrand = selectedBrand,
+                                hasIrEmitter = hasIrEmitter,
+                                onTransmitPower = transmitPowerAction,
+                                onSelectBrand = selectBrandAction,
                                 onDisconnect = {
                                     // User explicitly tapped close (X) to pick/scan for another TV
                                     remoteEngine.disconnect()
@@ -256,7 +292,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onShowSplash = {
                                     showSplashScreen = true
-                                }
+                                },
+                                selectedBrand = selectedBrand,
+                                hasIrEmitter = hasIrEmitter,
+                                onTransmitPower = transmitPowerAction,
+                                onSelectBrand = selectBrandAction
                             )
                         }
 

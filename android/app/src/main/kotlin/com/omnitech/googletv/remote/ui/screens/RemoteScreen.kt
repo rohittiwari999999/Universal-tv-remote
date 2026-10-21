@@ -26,6 +26,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnitech.googletv.remote.ir.TvBrand
+import com.omnitech.googletv.remote.ir.IrBlasterManager
+import com.omnitech.googletv.remote.ui.components.TopPowerBrandBar
 import com.omnitech.googletv.remote.model.DiscoveredGoogleTv
 import com.omnitech.googletv.remote.model.RemoteConnectionState
 import com.omnitech.googletv.remote.model.TvKey
@@ -40,6 +43,10 @@ fun RemoteScreen(
     onLaunchApp: (String) -> Unit,
     onReconnect: () -> Unit = {},
     onRePair: () -> Unit = {},
+    selectedBrand: TvBrand = IrBlasterManager.SUPPORTED_BRANDS.first(),
+    hasIrEmitter: Boolean = false,
+    onTransmitPower: (TvBrand) -> Unit = {},
+    onSelectBrand: (TvBrand) -> Unit = {},
     onDisconnect: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -65,6 +72,16 @@ fun RemoteScreen(
             .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Top Power ON Button & TV Brand Selector (Coocaa 38kHz NEC IR Blaster)
+        TopPowerBrandBar(
+            selectedBrand = selectedBrand,
+            hasIrEmitter = hasIrEmitter,
+            onTransmitPower = onTransmitPower,
+            onSelectBrand = onSelectBrand
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Connected Header
         Row(
             modifier = Modifier
