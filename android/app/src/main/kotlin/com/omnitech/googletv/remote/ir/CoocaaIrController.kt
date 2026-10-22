@@ -111,30 +111,119 @@ class CoocaaIrController(private val context: Context) {
         // 5. Coocaa Universal Power 0x04FB01FE
         val PATTERN_UNIVERSAL = buildStandardNec(0x04, 0xFB, 0x01, 0xFE)
 
+        const val FREQ_36000 = 36000
+        const val FREQ_40000 = 40000
+        const val FREQ_56000 = 56000
+
         /**
          * Primary Coocaa TV Power Pattern (38.4 kHz, 68 pulses).
          * Direct reference needed by IrBlasterManager and external activities.
          */
         @JvmField
         val COOCAA_POWER_PATTERN: IntArray = RAW_USER_PATTERN
+
+        /**
+         * List of all testable Coocaa TV code and frequency variants.
+         * Allows testing one-by-one ("Ek ek karke test karein") so user finds the exact working frequency.
+         */
+        val ALL_VARIANTS = listOf(
+            CoocaaVariantItem(
+                index = 1,
+                name = "Coocaa Google TV & Android TV",
+                frequencyHz = 38000,
+                hexCode = "0x00FF12ED",
+                protocol = "NEC 32-bit (38kHz)",
+                description = "Standard Google TV / Android TV (Skyworth official)",
+                pattern = PATTERN_GOOGLE_TV
+            ),
+            CoocaaVariantItem(
+                index = 2,
+                name = "Coocaa 4K S6G / Y72 Series",
+                frequencyHz = 38400,
+                hexCode = "0x707030CF",
+                protocol = "NEC 32-bit (38.4kHz)",
+                description = "Coocaa 43/50/55 inch 4K Smart TV models",
+                pattern = PATTERN_S6G_Y72
+            ),
+            CoocaaVariantItem(
+                index = 3,
+                name = "Coocaa 9ms Lead Burst (Standby Wake)",
+                frequencyHz = 38400,
+                hexCode = "0x707030CF (9ms AGC)",
+                protocol = "Standard 9000µs NEC",
+                description = "Deep standby wake-up pattern with 9ms AGC leader burst",
+                pattern = CORRECTED_HEADER_PATTERN
+            ),
+            CoocaaVariantItem(
+                index = 4,
+                name = "Coocaa Coolita / 32S3U / 40S3U",
+                frequencyHz = 38000,
+                hexCode = "0x01FE48B7",
+                protocol = "NEC 32-bit (38kHz)",
+                description = "Coocaa Coolita OS and budget 32/40-inch Smart TVs",
+                pattern = PATTERN_COOLITA
+            ),
+            CoocaaVariantItem(
+                index = 5,
+                name = "Skyworth Android TV Alt",
+                frequencyHz = 38000,
+                hexCode = "0x00FF02FD",
+                protocol = "NEC 32-bit (38kHz)",
+                description = "Skyworth / Coocaa alternate power code",
+                pattern = PATTERN_SKYWORTH_ALT
+            ),
+            CoocaaVariantItem(
+                index = 6,
+                name = "Custom 68-Pulse Raw Array",
+                frequencyHz = 38400,
+                hexCode = "RAW [1901µs, 4453µs...]",
+                protocol = "Custom Raw Microseconds",
+                description = "User exact 68-pulse timing pattern",
+                pattern = RAW_USER_PATTERN
+            ),
+            CoocaaVariantItem(
+                index = 7,
+                name = "Coocaa 36kHz Indian Model Variant",
+                frequencyHz = 36000,
+                hexCode = "0x00FF12ED (36kHz)",
+                protocol = "NEC 32-bit (36kHz Modulation)",
+                description = "Older Indian & Southeast Asian Coocaa models using 36kHz carrier",
+                pattern = PATTERN_GOOGLE_TV
+            ),
+            CoocaaVariantItem(
+                index = 8,
+                name = "Coocaa Universal Power",
+                frequencyHz = 38000,
+                hexCode = "0x04FB01FE",
+                protocol = "NEC 32-bit",
+                description = "Coocaa Universal Smart TV power toggle code",
+                pattern = PATTERN_UNIVERSAL
+            ),
+            CoocaaVariantItem(
+                index = 9,
+                name = "Coocaa 40kHz High Carrier Variant",
+                frequencyHz = 40000,
+                hexCode = "0x707030CF (40kHz)",
+                protocol = "NEC 32-bit (40kHz)",
+                description = "High carrier frequency variant for noise-filtered receivers",
+                pattern = PATTERN_S6G_Y72
+            )
+        )
     }
 
     /**
-     * Transmits a specific Coocaa code index (1 to 6) or 0 for Super Multi-Blast.
+     * Transmits a specific Coocaa code index (1 to 9) or 0 for Super Multi-Blast.
      */
     suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
         if (!hasIrBlaster()) {
             return false
         }
 
-        return when (codeIndex) {
-            1 -> transmitSinglePattern(PATTERN_GOOGLE_TV, FREQ_38000, "Coocaa Google TV (0x00FF12ED)")
-            2 -> transmitSinglePattern(PATTERN_S6G_Y72, FREQ_38400, "Coocaa S6G/Y72 4K (0x707030CF)")
-            3 -> transmitSinglePattern(PATTERN_COOLITA, FREQ_38000, "Coocaa Coolita/Smart (0x01FE48B7)")
-            4 -> transmitSinglePattern(PATTERN_SKYWORTH_ALT, FREQ_38000, "Skyworth Android TV (0x00FF02FD)")
-            5 -> transmitSinglePattern(CORRECTED_HEADER_PATTERN, FREQ_38400, "Coocaa 9ms Lead Burst")
-            6 -> transmitSinglePattern(RAW_USER_PATTERN, FREQ_38400, "Coocaa Raw 68-pulse")
-            else -> sendSuperMultiBlast()
+        val variant = ALL_VARIANTS.find { it.index == codeIndex }
+        return if (variant != null) {
+            transmitSinglePattern(variant.pattern, variant.frequencyHz, variant.name)
+        } else {
+            sendSuperMultiBlast()
         }
     }
 
@@ -143,23 +232,28 @@ class CoocaaIrController(private val context: Context) {
      */
     fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean {
         if (!hasIrBlaster()) return false
-        val pattern = when (codeIndex) {
-            1 -> PATTERN_GOOGLE_TV
-            2 -> PATTERN_S6G_Y72
-            3 -> PATTERN_COOLITA
-            4 -> PATTERN_SKYWORTH_ALT
-            5 -> CORRECTED_HEADER_PATTERN
-            else -> COOCAA_POWER_PATTERN
-        }
-        val freq = if (codeIndex == 1 || codeIndex == 3 || codeIndex == 4) FREQ_38000 else FREQ_38400
+        val variant = ALL_VARIANTS.find { it.index == codeIndex }
+        val pattern = variant?.pattern ?: COOCAA_POWER_PATTERN
+        val freq = variant?.frequencyHz ?: FREQ_38400
+
         return try {
             irManager?.transmit(freq, pattern)
-            Log.i(TAG, "Transmitted sync IR signal at ${freq}Hz")
+            Log.i(TAG, "Transmitted sync IR signal (${variant?.name ?: "Default"}) at ${freq}Hz")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error transmitting sync IR: ${e.message}", e)
             false
         }
+    }
+
+    /**
+     * Transmits a specific variant with a customized carrier frequency.
+     * Useful when TV receiver is slightly off-frequency (e.g. 36.5kHz, 38.0kHz, 39.0kHz, 40.0kHz).
+     */
+    suspend fun transmitWithFrequency(codeIndex: Int, frequencyHz: Int): Boolean {
+        if (!hasIrBlaster()) return false
+        val variant = ALL_VARIANTS.find { it.index == codeIndex } ?: ALL_VARIANTS.first()
+        return transmitSinglePattern(variant.pattern, frequencyHz, "${variant.name} @ ${frequencyHz}Hz")
     }
 
     /**
@@ -181,31 +275,37 @@ class CoocaaIrController(private val context: Context) {
     }
 
     /**
-     * Super Multi-Blast: Transmits ALL 6 Coocaa TV power codes sequentially!
-     * Ensures any Coocaa / Skyworth model (Google TV, Android TV, Coolita, S6G, Y72)
+     * Super Multi-Blast: Transmits ALL 9 Coocaa TV power codes sequentially!
+     * Ensures any Coocaa / Skyworth model (Google TV, Android TV, Coolita, S6G, Y72, 36kHz)
      * catches its corresponding Power ON signal.
      */
     suspend fun sendSuperMultiBlast(): Boolean {
         if (!hasIrBlaster()) return false
 
-        val codes = listOf(
-            Triple(PATTERN_GOOGLE_TV, FREQ_38000, "Google TV Code"),
-            Triple(PATTERN_S6G_Y72, FREQ_38400, "S6G/Y72 Code"),
-            Triple(CORRECTED_HEADER_PATTERN, FREQ_38400, "9ms Header Code"),
-            Triple(PATTERN_COOLITA, FREQ_38000, "Coolita Code"),
-            Triple(PATTERN_SKYWORTH_ALT, FREQ_38000, "Skyworth Alt Code"),
-            Triple(RAW_USER_PATTERN, FREQ_38400, "Raw 68-pulse")
-        )
-
-        for ((pattern, freq, name) in codes) {
+        for (variant in ALL_VARIANTS) {
             try {
-                irManager?.transmit(freq, pattern)
-                delay(65)
+                irManager?.transmit(variant.frequencyHz, variant.pattern)
+                delay(40)
+                irManager?.transmit(variant.frequencyHz, variant.pattern) // 2x burst
+                delay(60)
             } catch (e: Exception) {
-                Log.w(TAG, "Blast step failed for $name: ${e.message}")
+                Log.w(TAG, "Blast step failed for ${variant.name}: ${e.message}")
             }
         }
-        Log.i(TAG, "Completed Super Multi-Blast across all 6 Coocaa codes!")
+        Log.i(TAG, "Completed Super Multi-Blast across all ${ALL_VARIANTS.size} Coocaa codes!")
         return true
     }
 }
+
+/**
+ * Metadata descriptor for each testable Coocaa IR frequency & code variant.
+ */
+data class CoocaaVariantItem(
+    val index: Int,
+    val name: String,
+    val frequencyHz: Int,
+    val hexCode: String,
+    val protocol: String,
+    val description: String,
+    val pattern: IntArray
+)

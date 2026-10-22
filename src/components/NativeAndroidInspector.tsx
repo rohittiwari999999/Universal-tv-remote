@@ -224,30 +224,30 @@ class CoocaaIrController(private val context: Context) {
         // Primary Coocaa Pattern (Referenced by IrBlasterManager)
         @JvmField
         val COOCAA_POWER_PATTERN: IntArray = RAW_USER_PATTERN
-    }
 
-    // Direct synchronous call for standard View.OnClickListener
-    fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean { ... }
-
-    // SUPER MULTI-BLAST: Fires all 6 codes sequentially with 2x frame repeat!
-    suspend fun sendSuperMultiBlast(): Boolean {
-        if (!hasIrBlaster()) return false
-        val codes = listOf(
-            PATTERN_GOOGLE_TV to FREQ_38000,
-            PATTERN_S6G_Y72 to FREQ_38400,
-            CORRECTED_HEADER_PATTERN to FREQ_38400,
-            PATTERN_COOLITA to FREQ_38000,
-            PATTERN_SKYWORTH_ALT to FREQ_38000,
-            RAW_USER_PATTERN to FREQ_38400
+        // ALL 9 testable frequencies (36.0kHz, 38.0kHz, 38.4kHz, 40.0kHz)
+        val ALL_VARIANTS = listOf(
+            CoocaaVariantItem(1, "Google TV", 38000, "0x00FF12ED", ...),
+            CoocaaVariantItem(2, "4K S6G / Y72", 38400, "0x707030CF", ...),
+            CoocaaVariantItem(3, "9ms AGC Leader", 38400, "0x707030CF", ...),
+            CoocaaVariantItem(4, "Coolita / 32S3U", 38000, "0x01FE48B7", ...),
+            CoocaaVariantItem(5, "Skyworth Alt", 38000, "0x00FF02FD", ...),
+            CoocaaVariantItem(6, "Raw 68-pulse", 38400, "1901µs", ...),
+            CoocaaVariantItem(7, "36kHz Indian Model", 36000, "0x00FF12ED", ...),
+            CoocaaVariantItem(8, "Universal Power", 38000, "0x04FB01FE", ...),
+            CoocaaVariantItem(9, "40kHz High Carrier", 40000, "0x707030CF", ...)
         )
-        for ((pattern, freq) in codes) {
-            irManager?.transmit(freq, pattern)
-            delay(50)
-            irManager?.transmit(freq, pattern) // 2nd repeat frame
-            delay(65)
-        }
-        return true
     }
+
+    // Ek-ek karke test karne ka function:
+    suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
+        val variant = ALL_VARIANTS.find { it.index == codeIndex }
+        return if (variant != null) transmitSinglePattern(variant.pattern, variant.frequencyHz)
+        else sendSuperMultiBlast()
+    }
+
+    // Custom frequency tuning (e.g. 36.5kHz, 38.0kHz, 40.0kHz):
+    suspend fun transmitWithFrequency(codeIndex: Int, frequencyHz: Int): Boolean { ... }
 
     suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
         return if (codeIndex == 0) sendSuperMultiBlast() else transmitSinglePattern(codeIndex)

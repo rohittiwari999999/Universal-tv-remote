@@ -24,6 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.omnitech.googletv.remote.ir.CoocaaIrController
+import com.omnitech.googletv.remote.ir.CoocaaVariantItem
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ui.theme.*
@@ -46,11 +50,18 @@ fun StandalonePowerOnCard(
     onSelectBrand: (TvBrand) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coocaaController = remember { CoocaaIrController(context) }
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     var isBlasting by remember { mutableStateOf(false) }
     var showBrandDialog by remember { mutableStateOf(false) }
+    var showCoocaaFrequencyDialog by remember { mutableStateOf(false) }
     var showSuccessToast by remember { mutableStateOf(false) }
+    var toastDetailMessage by remember { mutableStateOf<String?>(null) }
+    var testedVariantIndex by remember { mutableStateOf<Int?>(null) }
+    var autoTestingRunning by remember { mutableStateOf(false) }
+    var autoCycleIndex by remember { mutableStateOf(1) }
 
     val displayProtocol = remember(selectedBrand) {
         if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "Skyworth Raw" else "NEC"
@@ -212,6 +223,40 @@ fun StandalonePowerOnCard(
                 )
             }
 
+            // Coocaa Specific: Ek-ek karke on karne ka button (Test individual frequencies & codes)
+            if (selectedBrand.id.equals("coocaa", ignoreCase = true)) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showCoocaaFrequencyDialog = true
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GoogleTvBlue.copy(alpha = 0.15f),
+                        contentColor = GoogleTvBlue
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvBlue.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = GoogleTvBlue
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "EK-EK KARKE ON KAREIN (ALL FREQUENCIES)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.3.sp
+                    )
+                }
+            }
+
             // Real-time IR beam feedback banner
             AnimatedVisibility(
                 visible = showSuccessToast,
@@ -237,7 +282,7 @@ fun StandalonePowerOnCard(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "IR Sent: ${selectedBrand.name} $displayProtocol ($displayCode). TV will connect to Wi-Fi now!",
+                                text = toastDetailMessage ?: "IR Sent: ${selectedBrand.name} $displayProtocol ($displayCode). TV will connect to Wi-Fi now!",
                                 color = GoogleTvTextPrimary,
                                 fontSize = 11.sp
                             )
@@ -369,6 +414,203 @@ fun StandalonePowerOnCard(
                 }
             },
             confirmButton = {},
+            containerColor = GoogleTvSurface,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // Coocaa Specific: Ek-ek karke sabhi frequencies test karne ka Dialog
+    if (showCoocaaFrequencyDialog) {
+        val variants = remember { CoocaaIrController.ALL_VARIANTS }
+        var isAutoTesting by remember { mutableStateOf(false) }
+
+        // Auto testing coroutine cycle (cycles 1 by 1 with 2.5s delay)
+        LaunchedEffect(isAutoTesting) {
+            if (isAutoTesting) {
+                for (v in variants) {
+                    if (!isAutoTesting) break
+                    testedVariantIndex = v.index
+                    coocaaController.sendPowerOnSignal(v.index)
+                    Toast.makeText(context, "Testing: ${v.name} (${v.frequencyHz / 1000}kHz)", Toast.LENGTH_SHORT).show()
+                    delay(2500)
+                }
+                isAutoTesting = false
+                testedVariantIndex = null
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                isAutoTesting = false
+                showCoocaaFrequencyDialog = false
+            },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = GoogleTvRed, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Coocaa Frequency Tester", color = GoogleTvTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("Ek-ek karke TV ON test karein (36 - 40 kHz)", color = GoogleTvTextSecondary, fontSize = 10.5.sp)
+                        }
+                    }
+                    IconButton(onClick = {
+                        isAutoTesting = false
+                        showCoocaaFrequencyDialog = false
+                    }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = GoogleTvTextSecondary)
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // Auto Test Cycle Banner
+                    Surface(
+                        color = if (isAutoTesting) GoogleTvRed.copy(alpha = 0.2f) else GoogleTvDark,
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isAutoTesting) GoogleTvRed else GoogleTvBlue.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = if (isAutoTesting) "AUTO-TESTING IN PROGRESS..." else "Step-by-Step Auto Test",
+                                color = GoogleTvTextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isAutoTesting) "Phone ko TV ke samne rakhein. Har 2.5s me agli frequency fire ho rahi hai..." else "Phone ko TV ke aage rakhein, app sabhi frequencies ko baari-baari fire karega:",
+                                color = GoogleTvTextSecondary,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    isAutoTesting = !isAutoTesting
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isAutoTesting) GoogleTvRed else GoogleTvBlue
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(34.dp)
+                            ) {
+                                Icon(if (isAutoTesting) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isAutoTesting) "PAUSE AUTO-TEST" else "START AUTO TEST ALL (1 BY 1)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "Individual Frequencies & Codes (Ek-ek karke try karein):",
+                        color = GoogleTvTextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    variants.forEach { variant ->
+                        val isTestingThis = (testedVariantIndex == variant.index)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isTestingThis) GoogleTvRed.copy(alpha = 0.15f) else GoogleTvDark,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isTestingThis) GoogleTvRed else GoogleTvCardBorder
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            color = GoogleTvBlue.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "${variant.frequencyHz / 1000} kHz",
+                                                color = GoogleTvBlue,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = variant.name,
+                                            color = GoogleTvTextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = "${variant.hexCode} • ${variant.description}",
+                                        color = GoogleTvTextSecondary,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        testedVariantIndex = variant.index
+                                        coroutineScope.launch {
+                                            val ok = coocaaController.sendPowerOnSignal(variant.index)
+                                            toastDetailMessage = "Fired: ${variant.name} (${variant.frequencyHz / 1000}kHz). TV check karein!"
+                                            showSuccessToast = true
+                                            Toast.makeText(context, "IR Fired: ${variant.name} (${variant.frequencyHz / 1000}kHz)", Toast.LENGTH_SHORT).show()
+                                            delay(1500)
+                                            testedVariantIndex = null
+                                            delay(2000)
+                                            showSuccessToast = false
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isTestingThis) Color(0xFFE53935) else GoogleTvRed
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Icon(Icons.Default.PowerSettingsNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("TEST ON", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isAutoTesting = false
+                        showCoocaaFrequencyDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoogleTvBlue),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Done")
+                }
+            },
             containerColor = GoogleTvSurface,
             shape = RoundedCornerShape(20.dp)
         )

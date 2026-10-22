@@ -39,11 +39,11 @@ export interface CoocaaCodeVariant {
 export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
   {
     id: 'super_blast',
-    name: 'SUPER BLAST (All 6 Codes)',
-    codeHex: 'ALL 6 CODES',
+    name: 'SUPER MULTI-BLAST (All 9 Codes)',
+    codeHex: 'ALL 9 CODES',
     freq: 38400,
-    protocol: 'Multi-Frame NEC Burst',
-    description: 'Bheje sabhi 6 Coocaa TV power codes ek saath (Guaranteed wake-up)',
+    protocol: 'Multi-Frequency NEC Burst',
+    description: 'Sequentially fires all 9 frequency and code variants (Dual Frame repeat)',
     recommended: true
   },
   {
@@ -51,7 +51,7 @@ export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
     name: '1. Coocaa Google TV & Android TV',
     codeHex: '0x00FF12ED',
     freq: 38000,
-    protocol: 'NEC 32-bit (LSB)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Official Skyworth/Coocaa Google TV standard power code'
   },
   {
@@ -59,7 +59,7 @@ export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
     name: '2. Coocaa 4K Smart S6G / Y72',
     codeHex: '0x707030CF',
     freq: 38400,
-    protocol: 'NEC 32-bit (38.4kHz)',
+    protocol: 'NEC 32-bit (38.4 kHz)',
     description: 'Coocaa 43/50/55 inch 4K Smart TV series'
   },
   {
@@ -67,7 +67,7 @@ export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
     name: '3. Coocaa Standard 9ms Leader Burst',
     codeHex: '0x707030CF (9ms AGC)',
     freq: 38400,
-    protocol: 'Standard 9000µs NEC',
+    protocol: 'Standard 9000µs NEC (38.4 kHz)',
     description: 'Deep sleep wake-up pattern with 9000µs AGC leading burst'
   },
   {
@@ -75,7 +75,7 @@ export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
     name: '4. Coocaa Coolita / 32S3U / 40S3U',
     codeHex: '0x01FE48B7',
     freq: 38000,
-    protocol: 'NEC 32-bit',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Coocaa Coolita OS aur 32-40 inch Smart TVs'
   },
   {
@@ -83,16 +83,40 @@ export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
     name: '5. Skyworth Android TV Alt',
     codeHex: '0x00FF02FD',
     freq: 38000,
-    protocol: 'NEC 32-bit',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Skyworth universal power code variant'
   },
   {
     id: 'raw_user',
     name: '6. Custom 68-Pulse Array',
-    codeHex: 'RAW [1901, 4453...]',
+    codeHex: 'RAW [1901µs, 4453µs...]',
     freq: 38400,
-    protocol: 'Custom Raw Microseconds',
+    protocol: 'Custom Raw Microseconds (38.4 kHz)',
     description: 'User exact 68-pulse timing pattern'
+  },
+  {
+    id: 'indian_36k',
+    name: '7. Coocaa 36kHz Indian Model Variant',
+    codeHex: '0x00FF12ED (36kHz)',
+    freq: 36000,
+    protocol: 'NEC 32-bit (36.0 kHz)',
+    description: 'Older Indian & South-Asian Coocaa TVs requiring 36kHz carrier'
+  },
+  {
+    id: 'universal_power',
+    name: '8. Coocaa Universal Smart Power',
+    codeHex: '0x04FB01FE',
+    freq: 38000,
+    protocol: 'NEC 32-bit (38.0 kHz)',
+    description: 'Coocaa Universal Smart TV power toggle code'
+  },
+  {
+    id: 'high_freq_40k',
+    name: '9. Coocaa 40kHz High Carrier Variant',
+    codeHex: '0x707030CF (40kHz)',
+    freq: 40000,
+    protocol: 'NEC 32-bit (40.0 kHz)',
+    description: 'High carrier frequency variant for noise-filtered receivers'
   }
 ];
 
@@ -164,6 +188,10 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   const [testedVariantId, setTestedVariantId] = useState<string | null>(null);
   const [isPowerBlasting, setIsPowerBlasting] = useState(false);
   const [irToastMessage, setIrToastMessage] = useState<string | null>(null);
+  const [autoCycleActive, setAutoCycleActive] = useState(false);
+  const [autoCycleIndex, setAutoCycleIndex] = useState(1);
+  const [autoCycleCountdown, setAutoCycleCountdown] = useState(3);
+  const [customFrequencyHz, setCustomFrequencyHz] = useState(38400);
 
   // Saved paired remote state (Automatically enters remote screen directly - no need to tap connect remote)
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredTvItem | null>(() => {
@@ -382,7 +410,7 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     }, 3500);
   };
 
-  const handleTransmitCoocaaVariant = (variant: CoocaaCodeVariant) => {
+  const handleTransmitCoocaaVariant = (variant: CoocaaCodeVariant, customFreq?: number) => {
     remoteSound.click();
     setIsPowerBlasting(true);
     setSelectedCoocaaVariant(variant);
@@ -393,17 +421,18 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
       // ignore
     }
 
+    const freqToUse = customFreq || variant.freq;
     const isSuper = variant.id === 'super_blast';
     const toastText = isSuper
-      ? `⚡ SUPER MULTI-BLAST: Fired all 6 Coocaa TV Power codes (2x Repeat)!`
-      : `Coocaa IR Fired: ${variant.name} (${variant.codeHex} @ ${variant.freq / 1000}kHz)`;
+      ? `⚡ SUPER MULTI-BLAST: Fired all 9 Coocaa TV Power codes (2x Repeat)!`
+      : `Coocaa IR Fired: ${variant.name} (${variant.codeHex} @ ${(freqToUse / 1000).toFixed(1)}kHz)`;
 
     setIrToastMessage(toastText);
     onTvPowerToggle();
     onTvAction(
       isSuper
-        ? `[IR BLASTER] Fired SUPER MULTI-BLAST for Coocaa TV: Google TV (0x00FF12ED) + S6G/Y72 (0x707030CF) + 9ms AGC + Coolita (0x01FE48B7) + Skyworth Alt + Raw 68-pulse + Dual Wake-on-LAN!`
-        : `[IR BLASTER] Transmitted Coocaa TV ${variant.name} [${variant.codeHex}] at ${variant.freq}Hz (Dual-Frame Repeat) + Wake-on-LAN`
+        ? `[IR BLASTER] Fired SUPER MULTI-BLAST for Coocaa TV across all 9 variants (36kHz, 38kHz, 38.4kHz, 40kHz) + Dual Wake-on-LAN!`
+        : `[IR BLASTER] Transmitted Coocaa TV ${variant.name} [${variant.codeHex}] at ${freqToUse}Hz (Dual-Frame Repeat) + Wake-on-LAN`
     );
 
     setTimeout(() => {
@@ -413,6 +442,53 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     setTimeout(() => {
       setIrToastMessage(null);
     }, 4000);
+  };
+
+  // Step-by-step Auto-Test Runner for Coocaa frequencies
+  useEffect(() => {
+    if (!autoCycleActive) return;
+
+    const timer = setInterval(() => {
+      setAutoCycleCountdown((prev) => {
+        if (prev <= 1) {
+          // Advance to next variant (index 1 to 9, skipping super_blast 0)
+          const nextIndex = autoCycleIndex >= COOCAA_VARIANTS.length - 1 ? 1 : autoCycleIndex + 1;
+          setAutoCycleIndex(nextIndex);
+          const nextVariant = COOCAA_VARIANTS[nextIndex];
+          handleTransmitCoocaaVariant(nextVariant);
+          return 3; // Reset 3-second delay for user to check TV screen
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoCycleActive, autoCycleIndex]);
+
+  const handleStartAutoCycle = () => {
+    remoteSound.click();
+    setAutoCycleIndex(1);
+    setAutoCycleCountdown(3);
+    setAutoCycleActive(true);
+    handleTransmitCoocaaVariant(COOCAA_VARIANTS[1]);
+  };
+
+  const handleStopAutoCycle = () => {
+    remoteSound.click();
+    setAutoCycleActive(false);
+  };
+
+  const handleConfirmWorkingVariant = (variant: CoocaaCodeVariant) => {
+    remoteSound.pairingSuccess();
+    setAutoCycleActive(false);
+    setSelectedCoocaaVariant(variant);
+    try {
+      localStorage.setItem('selected_coocaa_variant', variant.id);
+    } catch {}
+    setIrToastMessage(`🎉 SAVED! Coocaa will always use: ${variant.name} (${(variant.freq / 1000).toFixed(1)}kHz)`);
+    setTimeout(() => {
+      setShowCoocaaTesterModal(false);
+    }, 1200);
   };
 
   const handleSelectBrand = (brand: TvBrand) => {
@@ -1255,6 +1331,243 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
             >
               Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* COOCAA FREQUENCY & CODE STEP-BY-STEP TESTER MODAL ("Ek ek karke on karne ka option") */}
+      {showCoocaaTesterModal && (
+        <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-30 p-3.5 flex flex-col justify-between animate-fade-in text-slate-100">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-red-400" />
+                <span>Coocaa TV Frequency &amp; Code Tester</span>
+              </div>
+              <p className="text-[9.5px] text-slate-400">
+                Ek-ek karke sabhi frequencies test karein (36.0 - 40.0 kHz)
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                handleStopAutoCycle();
+                setShowCoocaaTesterModal(false);
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Scrollable Testing Area */}
+          <div className="flex-1 my-2 space-y-2 overflow-y-auto pr-1">
+            
+            {/* 1. AUTO-CYCLE STEP-BY-STEP TEST RUNNER */}
+            <div className={`p-2.5 rounded-2xl border transition-all ${
+              autoCycleActive
+                ? 'bg-gradient-to-b from-red-950/70 via-slate-900 to-emerald-950/40 border-red-500/80 shadow-lg shadow-red-500/10'
+                : 'bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 border-blue-500/40'
+            }`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                  <span className="text-[11px] font-black text-white">
+                    {autoCycleActive ? 'STEP-BY-STEP AUTO-TESTING...' : 'Auto-Test All Frequencies'}
+                  </span>
+                </div>
+                {autoCycleActive && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 text-[9px] font-mono animate-pulse">
+                    Next in {autoCycleCountdown}s
+                  </span>
+                )}
+              </div>
+
+              {autoCycleActive ? (
+                <div className="space-y-2">
+                  <div className="bg-slate-950/80 border border-red-500/30 rounded-xl p-2 text-left">
+                    <div className="text-[10px] text-slate-400 font-mono">
+                      Testing #{autoCycleIndex} of {COOCAA_VARIANTS.length - 1}:
+                    </div>
+                    <div className="text-xs font-bold text-white truncate mt-0.5">
+                      {COOCAA_VARIANTS[autoCycleIndex]?.name}
+                    </div>
+                    <div className="text-[9.5px] text-cyan-400 font-mono mt-0.5 flex items-center justify-between">
+                      <span>{(COOCAA_VARIANTS[autoCycleIndex]?.freq / 1000).toFixed(1)} kHz</span>
+                      <span>{COOCAA_VARIANTS[autoCycleIndex]?.codeHex}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleConfirmWorkingVariant(COOCAA_VARIANTS[autoCycleIndex])}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>TV ON HO GAYA! (SAVE FREQUENCY)</span>
+                  </button>
+
+                  <button
+                    onClick={handleStopAutoCycle}
+                    className="w-full py-1 text-[10px] text-slate-400 hover:text-white"
+                  >
+                    Pause Auto-Test
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[9.5px] text-slate-300 leading-snug">
+                    Phone ko TV ke samne rakhein. Har 3 second me agli frequency fire hogi:
+                  </p>
+                  <button
+                    onClick={handleStartAutoCycle}
+                    className="w-full py-2 bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>START AUTO-TEST RUNNER (1 BY 1)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 2. SUPER MULTI-BLAST (All Codes Together) */}
+            <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <div className="text-left min-w-0 pr-2">
+                <div className="text-[10.5px] font-bold text-white flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-yellow-400 shrink-0" />
+                  <span className="truncate">Multi-Blast (All 9 Codes)</span>
+                </div>
+                <div className="text-[8.5px] text-slate-400">
+                  Fires all 9 codes back-to-back with 2x frame repeat
+                </div>
+              </div>
+              <button
+                onClick={() => handleTransmitCoocaaVariant(COOCAA_VARIANTS[0])}
+                className="px-3 py-1.5 bg-yellow-600/30 hover:bg-yellow-600/50 border border-yellow-500/50 text-yellow-300 text-[10px] font-bold rounded-lg shrink-0 active:scale-95 transition-all"
+              >
+                BLAST ALL
+              </button>
+            </div>
+
+            {/* 3. ONE-BY-ONE FREQUENCY & CODE LIST ("Ek ek karke test karein") */}
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left pt-1">
+              Ek-Ek Karke Test Karein (Individual Frequencies)
+            </div>
+
+            <div className="space-y-1.5">
+              {COOCAA_VARIANTS.slice(1).map((variant, index) => {
+                const isSelected = selectedCoocaaVariant.id === variant.id;
+                const wasTested = testedVariantId === variant.id;
+                const freqKHz = (variant.freq / 1000).toFixed(1);
+
+                return (
+                  <div
+                    key={variant.id}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      wasTested && isPowerBlasting
+                        ? 'bg-red-500/20 border-red-500 shadow-md ring-1 ring-red-400'
+                        : isSelected
+                        ? 'bg-blue-600/15 border-blue-500/70'
+                        : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-bold font-mono">
+                            {freqKHz} kHz
+                          </span>
+                          <span className="text-[11px] font-bold text-white truncate">
+                            {variant.name}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">
+                          {variant.description}
+                        </p>
+                        <div className="text-[8.5px] font-mono text-cyan-400/90 mt-0.5">
+                          Code: {variant.codeHex}
+                        </div>
+                      </div>
+
+                      {/* Direct One-by-One TEST ON Button */}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <button
+                          onClick={() => handleTransmitCoocaaVariant(variant)}
+                          className={`px-3 py-1.5 rounded-lg text-white font-black text-[10.5px] flex items-center gap-1 shadow active:scale-95 transition-all ${
+                            wasTested && isPowerBlasting
+                              ? 'bg-red-500 animate-pulse'
+                              : 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                          }`}
+                          title={`Test ${variant.name} at ${freqKHz}kHz`}
+                        >
+                          <Power className="w-3 h-3" />
+                          <span>TEST ON</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleConfirmWorkingVariant(variant)}
+                          className="text-[8.5px] text-slate-400 hover:text-emerald-400 flex items-center gap-0.5"
+                        >
+                          <Check className="w-2.5 h-2.5" />
+                          <span>{isSelected ? 'Saved Default' : 'Save Default'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 4. CUSTOM FREQUENCY FINE-TUNER */}
+            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-left">
+              <div className="text-[10px] font-bold text-white flex items-center gap-1 mb-1">
+                <Settings className="w-3 h-3 text-cyan-400" />
+                <span>Fine-Tune Carrier Frequency (kHz)</span>
+              </div>
+              <p className="text-[9px] text-slate-400 mb-2">
+                TV sensor tuning: select exact carrier frequency to fire active code:
+              </p>
+              
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {[36000, 37000, 38000, 38400, 39000, 40000, 56000].map((freq) => (
+                  <button
+                    key={freq}
+                    onClick={() => {
+                      remoteSound.click();
+                      setCustomFrequencyHz(freq);
+                    }}
+                    className={`py-1 rounded text-[9px] font-mono font-bold transition-all ${
+                      customFrequencyHz === freq
+                        ? 'bg-cyan-500 text-slate-950 font-black'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+                    }`}
+                  >
+                    {(freq / 1000).toFixed(1)}k
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handleTransmitCoocaaVariant(selectedCoocaaVariant, customFrequencyHz)}
+                className="w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Zap className="w-3 h-3" />
+                <span>Fire at {(customFrequencyHz / 1000).toFixed(1)} kHz</span>
+              </button>
+            </div>
+
+          </div>
+
+          {/* Modal Footer */}
+          <div className="pt-2 border-t border-slate-800 shrink-0 text-center">
+            <button
+              onClick={() => {
+                handleStopAutoCycle();
+                setShowCoocaaTesterModal(false);
+              }}
+              className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
+            >
+              Done / Close Tester
             </button>
           </div>
         </div>
