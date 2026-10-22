@@ -67,7 +67,7 @@ fun StandalonePowerOnCard(
         if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "iQOO Match (NEC 38kHz)" else "NEC"
     }
     val displayCode = remember(selectedBrand) {
-        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "0x47EF827D (3-Frame)" else "${selectedBrand.carrierFreq / 1000} kHz"
+        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "0x40BF12ED (3-Frame)" else "${selectedBrand.carrierFreq / 1000} kHz"
     }
 
     Card(

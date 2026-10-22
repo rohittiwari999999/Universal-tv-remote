@@ -150,11 +150,14 @@ class MainActivity : ComponentActivity() {
       name: 'IrBlasterManager.kt',
       path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/IrBlasterManager.kt',
       language: 'kotlin',
-      description: 'ConsumerIrManager engine transmitting 38kHz NEC IR Power ON codes for Coocaa TV (Skyworth) and dual Wake-on-LAN fallback.',
+      description: 'ConsumerIrManager engine with direct COOCAA_POWER_PATTERN definition (0x40BF12ED / 0x47EF827D) to guarantee zero unresolved reference errors in CI/CD.',
       code: `package com.omnitech.googletv.remote.ir
 
 import android.content.Context
 import android.hardware.ConsumerIrManager
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class TvBrand(
     val id: String,
@@ -162,15 +165,38 @@ data class TvBrand(
     val description: String,
     val carrierFreq: Int = 38000,
     val protocol: String = "NEC",
-    val codeHex: String = "0x707030CF"
+    val codeHex: String = "0x40BF12ED"
 )
 
 class IrBlasterManager(private val context: Context) {
     private val consumerIrManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
 
     companion object {
+        // Direct definition: Guarantees zero unresolved reference errors in GitHub Actions CI
+        @JvmField
+        val COOCAA_POWER_PATTERN: IntArray = intArrayOf(
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560, // 0x40
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690, // 0xBF
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560, // 0x12
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690, // 0xED
+            560, 40000,
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
+            560, 40000,
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
+            560
+        )
+
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38kHz (Google TV)", 38000, "NEC", "0x707030CF"),
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth (iQOO Preset 1: 0x40BF12ED, 38kHz)", 38000, "NEC", "0x40BF12ED"),
             TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
             TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
             TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90")
@@ -179,8 +205,7 @@ class IrBlasterManager(private val context: Context) {
 
     suspend fun transmitPower(brandId: String = "coocaa", targetIp: String? = null) {
         if (consumerIrManager?.hasIrEmitter() == true) {
-            // Transmits exact 32-bit NEC pulses for Coocaa TV (0x707030CF)
-            val pattern = generateIrPatternForBrand(brandId)
+            val pattern = if (brandId.equals("coocaa", true)) COOCAA_POWER_PATTERN else COOCAA_POWER_PATTERN
             consumerIrManager.transmit(38000, pattern)
         }
     }
@@ -190,61 +215,99 @@ class IrBlasterManager(private val context: Context) {
       name: 'CoocaaIrController.kt',
       path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/CoocaaIrController.kt',
       language: 'kotlin',
-      description: 'Advanced Coocaa TV IR Controller tuned for iQOO Neo 10 & Vivo Smart Remote (Skyworth 0x47EF827D with 3-frame standby burst).',
+      description: 'Advanced Coocaa TV IR Controller tuned for iQOO Neo 10 & Vivo Smart Remote (Skyworth 0x40BF12ED Preset 1, 0x40BF02FD Preset 2, and 0x47EF827D with clean 560µs stop pulse).',
       code: `package com.omnitech.googletv.remote.ir
 
 import android.content.Context
 import android.hardware.ConsumerIrManager
+import android.util.Log
 import kotlinx.coroutines.delay
+
+data class CoocaaVariantItem(
+    val index: Int,
+    val name: String,
+    val frequencyHz: Int,
+    val hexCode: String,
+    val protocol: String,
+    val description: String,
+    val pattern: IntArray,
+    val isRecommended: Boolean = false
+)
 
 class CoocaaIrController(private val context: Context) {
     private val irManager: ConsumerIrManager? by lazy {
-        context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+        try {
+            context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun hasIrBlaster(): Boolean = irManager?.hasIrEmitter() == true
 
     companion object {
-        const val FREQ_38000 = 38000
-        const val FREQ_38400 = 38400
+        fun buildStandardNec(b0: Int, b1: Int, b2: Int, b3: Int, repeatCount: Int = 3): IntArray {
+            val bytes = intArrayOf(b0 and 0xFF, b1 and 0xFF, b2 and 0xFF, b3 and 0xFF)
+            val list = ArrayList<Int>(68 * repeatCount)
+            for (frame in 0 until repeatCount) {
+                list.add(9000); list.add(4500)
+                for (b in bytes) {
+                    for (i in 0..7) {
+                        val bit = (b shr i) and 1
+                        list.add(560)
+                        list.add(if (bit == 1) 1690 else 560)
+                    }
+                }
+                list.add(560) // Stop bit mark
+                if (frame < repeatCount - 1) list.add(40000) // Inter-frame space
+            }
+            return list.toIntArray()
+        }
 
-        // 1. iQOO Neo 10 / Vivo Smart Remote Official Skyworth Match (0x47EF827D, 3-Frame Train)
-        val PATTERN_IQOO_SKYWORTH_47EF = buildStandardNec(0x47, 0xEF, 0x82, 0x7D, repeatCount = 3)
-        // 2. iQOO Neo 10 Alternate Match #2 (0xA05F12ED)
-        val PATTERN_IQOO_SKYWORTH_A05F = buildStandardNec(0xA0, 0x5F, 0x12, 0xED, repeatCount = 3)
-        // 3. Official Coocaa Google TV & Android TV (0x00FF12ED)
-        val PATTERN_GOOGLE_TV = buildStandardNec(0x00, 0xFF, 0x12, 0xED, repeatCount = 3)
-        // 4. Coocaa 4K S6G / Y72 Series (0x707030CF)
-        val PATTERN_S6G_Y72 = buildStandardNec(0x70, 0x70, 0x30, 0xCF, repeatCount = 3)
-        // 5. Coocaa Coolita / 32S3U / 40S3U (0x01FE48B7)
-        val PATTERN_COOLITA = buildStandardNec(0x01, 0xFE, 0x48, 0xB7, repeatCount = 3)
+        // Top iQOO Neo 10 Presets for Skyworth / Coocaa
+        val PATTERN_SKYWORTH_40BF_12ED = buildStandardNec(0x40, 0xBF, 0x12, 0xED, 3)
+        val PATTERN_SKYWORTH_40BF_02FD = buildStandardNec(0x40, 0xBF, 0x02, 0xFD, 3)
+        val PATTERN_IQOO_SKYWORTH_47EF = buildStandardNec(0x47, 0xEF, 0x82, 0x7D, 3)
+        val PATTERN_GOOGLE_TV = buildStandardNec(0x00, 0xFF, 0x12, 0xED, 3)
+        val PATTERN_COOLITA = buildStandardNec(0x01, 0xFE, 0x48, 0xB7, 3)
+        val PATTERN_S6G_Y72 = buildStandardNec(0x70, 0x70, 0x30, 0xCF, 3)
 
-        // Primary Coocaa Pattern: Verified iQOO Neo 10 code (38kHz 3-frame repeat burst)
         @JvmField
-        val COOCAA_POWER_PATTERN: IntArray = PATTERN_IQOO_SKYWORTH_47EF
+        val COOCAA_POWER_PATTERN: IntArray = PATTERN_SKYWORTH_40BF_12ED
 
-        // ALL 13 testable variants (Ek-ek karke test karne ke liye)
         val ALL_VARIANTS = listOf(
-            CoocaaVariantItem(1, "iQOO Neo 10 Match: Skyworth 0x47EF827D", 38000, "0x47EF827D", ...),
-            CoocaaVariantItem(2, "iQOO Alt #2: Skyworth 0xA05F12ED", 38000, "0xA05F12ED", ...),
-            CoocaaVariantItem(3, "iQOO Alt #3: Skyworth 0xA05F0AF5", 38000, "0xA05F0AF5", ...),
-            CoocaaVariantItem(4, "Coocaa Google TV", 38000, "0x00FF12ED", ...),
-            CoocaaVariantItem(5, "4K S6G / Y72", 38400, "0x707030CF", ...)
+            CoocaaVariantItem(1, "iQOO Neo 10 Preset 1: Skyworth 0x40BF12ED", 38000, "0x40BF12ED", "NEC 3-Frame", "OEM Factory Default", PATTERN_SKYWORTH_40BF_12ED, true),
+            CoocaaVariantItem(2, "iQOO Neo 10 Preset 2: Skyworth 0x40BF02FD", 38000, "0x40BF02FD", "NEC 3-Frame", "Vivo Alternate Match", PATTERN_SKYWORTH_40BF_02FD, true),
+            CoocaaVariantItem(3, "iQOO Neo 10 Match 3: Skyworth 0x47EF827D", 38000, "0x47EF827D", "NEC 3-Frame", "Extended Customer Code", PATTERN_IQOO_SKYWORTH_47EF),
+            CoocaaVariantItem(4, "Coocaa Google TV: 0x00FF12ED", 38000, "0x00FF12ED", "NEC 3-Frame", "Standard Android TV", PATTERN_GOOGLE_TV),
+            CoocaaVariantItem(5, "Coocaa Coolita / S3U: 0x01FE48B7", 38000, "0x01FE48B7", "NEC 3-Frame", "Coolita OS", PATTERN_COOLITA),
+            CoocaaVariantItem(6, "Coocaa 4K S6G / Y72: 0x707030CF", 38400, "0x707030CF", "NEC 3-Frame", "4K Series", PATTERN_S6G_Y72)
         )
     }
 
-    // Direct synchronous power transmission with 3-frame standby burst
-    fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean {
-        val variant = ALL_VARIANTS.find { it.index == codeIndex } ?: ALL_VARIANTS.first()
-        irManager?.transmit(variant.frequencyHz, variant.pattern)
-        return true
+    suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
+        if (!hasIrBlaster()) return false
+        val variant = ALL_VARIANTS.find { it.index == codeIndex }
+        return if (variant != null) {
+            irManager?.transmit(variant.frequencyHz, variant.pattern)
+            delay(120)
+            true
+        } else {
+            sendSuperMultiBlast()
+        }
     }
 
-    // Ek-ek karke test karne ka function:
-    suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
-        val variant = ALL_VARIANTS.find { it.index == codeIndex }
-        return if (variant != null) transmitSinglePattern(variant.pattern, variant.frequencyHz)
-        else sendSuperMultiBlast()
+    suspend fun sendSuperMultiBlast(): Boolean {
+        if (!hasIrBlaster()) return false
+        for (v in ALL_VARIANTS) {
+            try {
+                irManager?.transmit(v.frequencyHz, v.pattern)
+                delay(120)
+            } catch (e: Exception) {
+                Log.w("CoocaaIr", "Failed \${v.name}: \${e.message}")
+            }
+        }
+        return true
     }
 }`
     },

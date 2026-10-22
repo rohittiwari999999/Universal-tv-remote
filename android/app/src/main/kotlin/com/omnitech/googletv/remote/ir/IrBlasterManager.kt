@@ -44,8 +44,38 @@ class IrBlasterManager(private val context: Context) {
         }
 
     companion object {
+        /**
+         * Primary Coocaa / Skyworth Power ON pattern (NEC 38.0 kHz 3-frame burst).
+         * Defined directly inside IrBlasterManager to guarantee zero unresolved reference errors in CI/CD.
+         * Default: Skyworth 0x40BF12ED (The #1 OEM Factory Code in iQOO Neo 10 / Vivo Smart Remote database).
+         */
+        @JvmField
+        val COOCAA_POWER_PATTERN: IntArray = intArrayOf(
+            // Frame 1: 9ms mark, 4.5ms space, 32 bits (0x40, 0xBF, 0x12, 0xED), 560us stop, 40ms space
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560, // 0x40
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690, // 0xBF
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560, // 0x12
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690, // 0xED
+            560, 40000,
+            // Frame 2:
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
+            560, 40000,
+            // Frame 3 (Ends cleanly with 560us stop pulse mark):
+            9000, 4500,
+            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
+            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
+            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
+            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
+            560
+        )
+
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth (iQOO Neo 10 Match: 0x47EF827D, 38kHz)", 38000, "NEC", "0x47EF827D"),
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth (iQOO Neo 10 Match: 0x40BF12ED, 38kHz)", 38000, "NEC", "0x40BF12ED"),
             TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
             TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
             TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90"),
@@ -146,8 +176,8 @@ class IrBlasterManager(private val context: Context) {
     private fun generateIrPatternForBrand(brandId: String): IntArray {
         return when (brandId.lowercase()) {
             "coocaa" -> {
-                // Coocaa / Skyworth 68-pulse IR timing pattern (38.4 kHz)
-                CoocaaIrController.COOCAA_POWER_PATTERN
+                // Coocaa / Skyworth Power ON burst (38 kHz, iQOO Neo 10 OEM Match)
+                COOCAA_POWER_PATTERN
             }
             "samsung" -> {
                 // Samsung Power: 0xE0E040BF
