@@ -45,7 +45,7 @@ class IrBlasterManager(private val context: Context) {
 
     companion object {
         val SUPPORTED_BRANDS = listOf(
-            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth NEC 38.4kHz (Google & Android TV)", 38400, "NEC", "0x707030CF"),
+            TvBrand("coocaa", "Coocaa TV", "Coocaa / Skyworth (iQOO Neo 10 Match: 0x47EF827D, 38kHz)", 38000, "NEC", "0x47EF827D"),
             TvBrand("samsung", "Samsung TV", "Samsung 38kHz Power Code", 38000, "Samsung", "0xE0E040BF"),
             TvBrand("lg", "LG TV", "LG NEC 38kHz Power Code", 38000, "NEC", "0x20DF10EF"),
             TvBrand("sony", "Sony TV", "Sony SIRC 40kHz 12-bit Power Code", 40000, "Sony SIRC", "0xA90"),

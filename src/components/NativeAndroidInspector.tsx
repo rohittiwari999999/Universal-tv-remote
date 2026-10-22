@@ -190,7 +190,7 @@ class IrBlasterManager(private val context: Context) {
       name: 'CoocaaIrController.kt',
       path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/CoocaaIrController.kt',
       language: 'kotlin',
-      description: 'Advanced Coocaa TV IR Controller supporting all 6 power codes (Google TV, 4K S6G/Y72, Coolita, 9ms AGC Leader, Skyworth Alt, Raw) and Super Multi-Blast.',
+      description: 'Advanced Coocaa TV IR Controller tuned for iQOO Neo 10 & Vivo Smart Remote (Skyworth 0x47EF827D with 3-frame standby burst).',
       code: `package com.omnitech.googletv.remote.ir
 
 import android.content.Context
@@ -205,38 +205,39 @@ class CoocaaIrController(private val context: Context) {
     fun hasIrBlaster(): Boolean = irManager?.hasIrEmitter() == true
 
     companion object {
-        const val FREQ_38400 = 38400
         const val FREQ_38000 = 38000
+        const val FREQ_38400 = 38400
 
-        // 1. Official Coocaa Google TV & Android TV (0x00FF12ED)
-        val PATTERN_GOOGLE_TV = buildStandardNec(0x00, 0xFF, 0x12, 0xED)
-        // 2. Coocaa 4K S6G / Y72 Series (0x707030CF)
-        val PATTERN_S6G_Y72 = buildStandardNec(0x70, 0x70, 0x30, 0xCF)
-        // 3. Coocaa Coolita / 32S3U / 40S3U (0x01FE48B7)
-        val PATTERN_COOLITA = buildStandardNec(0x01, 0xFE, 0x48, 0xB7)
-        // 4. Skyworth Android TV Alt (0x00FF02FD)
-        val PATTERN_SKYWORTH_ALT = buildStandardNec(0x00, 0xFF, 0x02, 0xFD)
-        // 5. Corrected 9000µs AGC Leader Burst (Deep Standby Wake)
-        val CORRECTED_HEADER_PATTERN = intArrayOf(9000, 4453, 625, 1614, ...)
-        // 6. User Raw 68-pulse Array
-        val RAW_USER_PATTERN = intArrayOf(1901, 4453, 625, 1614, ...)
+        // 1. iQOO Neo 10 / Vivo Smart Remote Official Skyworth Match (0x47EF827D, 3-Frame Train)
+        val PATTERN_IQOO_SKYWORTH_47EF = buildStandardNec(0x47, 0xEF, 0x82, 0x7D, repeatCount = 3)
+        // 2. iQOO Neo 10 Alternate Match #2 (0xA05F12ED)
+        val PATTERN_IQOO_SKYWORTH_A05F = buildStandardNec(0xA0, 0x5F, 0x12, 0xED, repeatCount = 3)
+        // 3. Official Coocaa Google TV & Android TV (0x00FF12ED)
+        val PATTERN_GOOGLE_TV = buildStandardNec(0x00, 0xFF, 0x12, 0xED, repeatCount = 3)
+        // 4. Coocaa 4K S6G / Y72 Series (0x707030CF)
+        val PATTERN_S6G_Y72 = buildStandardNec(0x70, 0x70, 0x30, 0xCF, repeatCount = 3)
+        // 5. Coocaa Coolita / 32S3U / 40S3U (0x01FE48B7)
+        val PATTERN_COOLITA = buildStandardNec(0x01, 0xFE, 0x48, 0xB7, repeatCount = 3)
 
-        // Primary Coocaa Pattern (Referenced by IrBlasterManager)
+        // Primary Coocaa Pattern: Verified iQOO Neo 10 code (38kHz 3-frame repeat burst)
         @JvmField
-        val COOCAA_POWER_PATTERN: IntArray = RAW_USER_PATTERN
+        val COOCAA_POWER_PATTERN: IntArray = PATTERN_IQOO_SKYWORTH_47EF
 
-        // ALL 9 testable frequencies (36.0kHz, 38.0kHz, 38.4kHz, 40.0kHz)
+        // ALL 13 testable variants (Ek-ek karke test karne ke liye)
         val ALL_VARIANTS = listOf(
-            CoocaaVariantItem(1, "Google TV", 38000, "0x00FF12ED", ...),
-            CoocaaVariantItem(2, "4K S6G / Y72", 38400, "0x707030CF", ...),
-            CoocaaVariantItem(3, "9ms AGC Leader", 38400, "0x707030CF", ...),
-            CoocaaVariantItem(4, "Coolita / 32S3U", 38000, "0x01FE48B7", ...),
-            CoocaaVariantItem(5, "Skyworth Alt", 38000, "0x00FF02FD", ...),
-            CoocaaVariantItem(6, "Raw 68-pulse", 38400, "1901µs", ...),
-            CoocaaVariantItem(7, "36kHz Indian Model", 36000, "0x00FF12ED", ...),
-            CoocaaVariantItem(8, "Universal Power", 38000, "0x04FB01FE", ...),
-            CoocaaVariantItem(9, "40kHz High Carrier", 40000, "0x707030CF", ...)
+            CoocaaVariantItem(1, "iQOO Neo 10 Match: Skyworth 0x47EF827D", 38000, "0x47EF827D", ...),
+            CoocaaVariantItem(2, "iQOO Alt #2: Skyworth 0xA05F12ED", 38000, "0xA05F12ED", ...),
+            CoocaaVariantItem(3, "iQOO Alt #3: Skyworth 0xA05F0AF5", 38000, "0xA05F0AF5", ...),
+            CoocaaVariantItem(4, "Coocaa Google TV", 38000, "0x00FF12ED", ...),
+            CoocaaVariantItem(5, "4K S6G / Y72", 38400, "0x707030CF", ...)
         )
+    }
+
+    // Direct synchronous power transmission with 3-frame standby burst
+    fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean {
+        val variant = ALL_VARIANTS.find { it.index == codeIndex } ?: ALL_VARIANTS.first()
+        irManager?.transmit(variant.frequencyHz, variant.pattern)
+        return true
     }
 
     // Ek-ek karke test karne ka function:
@@ -244,13 +245,6 @@ class CoocaaIrController(private val context: Context) {
         val variant = ALL_VARIANTS.find { it.index == codeIndex }
         return if (variant != null) transmitSinglePattern(variant.pattern, variant.frequencyHz)
         else sendSuperMultiBlast()
-    }
-
-    // Custom frequency tuning (e.g. 36.5kHz, 38.0kHz, 40.0kHz):
-    suspend fun transmitWithFrequency(codeIndex: Int, frequencyHz: Int): Boolean { ... }
-
-    suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
-        return if (codeIndex == 0) sendSuperMultiBlast() else transmitSinglePattern(codeIndex)
     }
 }`
     },

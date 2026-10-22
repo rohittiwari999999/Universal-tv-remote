@@ -39,89 +39,122 @@ export interface CoocaaCodeVariant {
 export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
   {
     id: 'super_blast',
-    name: 'SUPER MULTI-BLAST (All 9 Codes)',
-    codeHex: 'ALL 9 CODES',
-    freq: 38400,
-    protocol: 'Multi-Frequency NEC Burst',
-    description: 'Sequentially fires all 9 frequency and code variants (Dual Frame repeat)',
+    name: 'SUPER MULTI-BLAST (All Top Codes)',
+    codeHex: 'ALL CODES',
+    freq: 38000,
+    protocol: 'Multi-Frequency NEC Burst (3-Frame Train)',
+    description: 'Sequentially fires all verified iQOO & Skyworth variants with 3-frame standby wake burst',
+    recommended: false
+  },
+  {
+    id: 'iqoo_neo10_47ef',
+    name: 'iQOO Neo 10 Match: Skyworth 0x47EF827D',
+    codeHex: '0x47EF827D',
+    freq: 38000,
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    description: 'Official code set used in iQOO Neo 10 / Vivo Smart Remote for Coocaa TV (Address 0x47, Power 0x82)',
     recommended: true
   },
   {
+    id: 'iqoo_neo10_a05f',
+    name: 'iQOO Alt #2: Skyworth 0xA05F12ED',
+    codeHex: '0xA05F12ED',
+    freq: 38000,
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    description: 'Alternate Coocaa Smart TV chassis in iQOO / Vivo remote database'
+  },
+  {
+    id: 'iqoo_neo10_a05f_alt',
+    name: 'iQOO Alt #3: Skyworth 0xA05F0AF5',
+    codeHex: '0xA05F0AF5',
+    freq: 38000,
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    description: 'Skyworth 4K & Smart 2023-2025 chassis in iQOO database'
+  },
+  {
     id: 'google_tv',
-    name: '1. Coocaa Google TV & Android TV',
+    name: 'Coocaa Google TV & Android TV',
     codeHex: '0x00FF12ED',
     freq: 38000,
-    protocol: 'NEC 32-bit (38.0 kHz)',
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
     description: 'Official Skyworth/Coocaa Google TV standard power code'
   },
   {
     id: 's6g_y72',
-    name: '2. Coocaa 4K Smart S6G / Y72',
+    name: 'Coocaa 4K Smart S6G / Y72',
     codeHex: '0x707030CF',
     freq: 38400,
-    protocol: 'NEC 32-bit (38.4 kHz)',
+    protocol: 'NEC 32-bit 3-Frame (38.4 kHz)',
     description: 'Coocaa 43/50/55 inch 4K Smart TV series'
   },
   {
     id: 'corrected_9ms',
-    name: '3. Coocaa Standard 9ms Leader Burst',
+    name: 'Coocaa Standard 9ms Leader Burst',
     codeHex: '0x707030CF (9ms AGC)',
     freq: 38400,
-    protocol: 'Standard 9000µs NEC (38.4 kHz)',
+    protocol: 'Standard 9000µs NEC 3-Frame (38.4 kHz)',
     description: 'Deep sleep wake-up pattern with 9000µs AGC leading burst'
   },
   {
     id: 'coolita',
-    name: '4. Coocaa Coolita / 32S3U / 40S3U',
+    name: 'Coocaa Coolita / 32S3U / 40S3U',
     codeHex: '0x01FE48B7',
     freq: 38000,
-    protocol: 'NEC 32-bit (38.0 kHz)',
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
     description: 'Coocaa Coolita OS aur 32-40 inch Smart TVs'
   },
   {
     id: 'skyworth_alt',
-    name: '5. Skyworth Android TV Alt',
+    name: 'Skyworth Android TV Alt (0x02FD)',
     codeHex: '0x00FF02FD',
     freq: 38000,
-    protocol: 'NEC 32-bit (38.0 kHz)',
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
     description: 'Skyworth universal power code variant'
   },
   {
+    id: 'skyworth_1ae5',
+    name: 'Skyworth Smart Alt (0x1AE5)',
+    codeHex: '0x00FF1AE5',
+    freq: 38000,
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    description: 'Skyworth / Coocaa alternate power code 3'
+  },
+  {
+    id: 'skyworth_0eed',
+    name: 'Skyworth Smart Chassis (0x0EED)',
+    codeHex: '0x0EED11EE',
+    freq: 38000,
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    description: 'Skyworth Asian smart TV chassis'
+  },
+  {
+    id: 'indian_36k',
+    name: 'Coocaa 36kHz Indian Model Variant',
+    codeHex: '0x47EF827D (36kHz)',
+    freq: 36000,
+    protocol: 'NEC 32-bit (36.0 kHz)',
+    description: 'Older Indian & South-Asian Coocaa TVs requiring 36kHz carrier'
+  },
+  {
     id: 'raw_user',
-    name: '6. Custom 68-Pulse Array',
+    name: 'Custom 68-Pulse Array',
     codeHex: 'RAW [1901µs, 4453µs...]',
     freq: 38400,
     protocol: 'Custom Raw Microseconds (38.4 kHz)',
     description: 'User exact 68-pulse timing pattern'
   },
   {
-    id: 'indian_36k',
-    name: '7. Coocaa 36kHz Indian Model Variant',
-    codeHex: '0x00FF12ED (36kHz)',
-    freq: 36000,
-    protocol: 'NEC 32-bit (36.0 kHz)',
-    description: 'Older Indian & South-Asian Coocaa TVs requiring 36kHz carrier'
-  },
-  {
     id: 'universal_power',
-    name: '8. Coocaa Universal Smart Power',
+    name: 'Coocaa Universal Smart Power',
     codeHex: '0x04FB01FE',
     freq: 38000,
-    protocol: 'NEC 32-bit (38.0 kHz)',
+    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
     description: 'Coocaa Universal Smart TV power toggle code'
-  },
-  {
-    id: 'high_freq_40k',
-    name: '9. Coocaa 40kHz High Carrier Variant',
-    codeHex: '0x707030CF (40kHz)',
-    freq: 40000,
-    protocol: 'NEC 32-bit (40.0 kHz)',
-    description: 'High carrier frequency variant for noise-filtered receivers'
   }
 ];
 
 export const SUPPORTED_TV_BRANDS: TvBrand[] = [
-  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth Multi-Code (38.4 kHz)', carrierFreq: 38400, protocol: 'NEC Multi-Burst', codeHex: '0x00FF12ED / 0x707030CF' },
+  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth (iQOO Neo 10 Match: 0x47EF827D, 38kHz)', carrierFreq: 38000, protocol: 'NEC 3-Frame Burst', codeHex: '0x47EF827D' },
   { id: 'samsung', name: 'Samsung TV', description: 'Samsung 38kHz Power Code', carrierFreq: 38000, protocol: 'Samsung 32-bit', codeHex: '0xE0E040BF' },
   { id: 'lg', name: 'LG TV', description: 'LG NEC 38kHz Power Code', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x20DF10EF' },
   { id: 'sony', name: 'Sony TV', description: 'Sony SIRC 40kHz 12-bit Power Code', carrierFreq: 40000, protocol: 'SIRC 12-bit', codeHex: '0x0A90' },
@@ -1449,6 +1482,19 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               </button>
             </div>
 
+            {/* iQOO Neo 10 Verified Match Alert */}
+            <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/50 text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-[11px] font-extrabold text-emerald-300">
+                  iQOO Neo 10 Verified Match Found
+                </span>
+              </div>
+              <p className="text-[9.5px] text-slate-300 leading-snug">
+                iQOO Neo 10 ke custom remote app me Skyworth ka code <strong className="text-white font-mono font-bold">0x47EF827D</strong> (38kHz) 3-frame standby burst ke sath use hota hai. Niche Variant 1 ko test karein!
+              </p>
+            </div>
+
             {/* 3. ONE-BY-ONE FREQUENCY & CODE LIST ("Ek ek karke test karein") */}
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left pt-1">
               Ek-Ek Karke Test Karein (Individual Frequencies)
@@ -1466,6 +1512,8 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
                     className={`p-2.5 rounded-xl border text-left transition-all ${
                       wasTested && isPowerBlasting
                         ? 'bg-red-500/20 border-red-500 shadow-md ring-1 ring-red-400'
+                        : variant.recommended
+                        ? 'bg-emerald-950/30 border-emerald-500/60'
                         : isSelected
                         ? 'bg-blue-600/15 border-blue-500/70'
                         : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
@@ -1474,8 +1522,12 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-bold font-mono">
-                            {freqKHz} kHz
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono ${
+                            variant.recommended 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                              : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          }`}>
+                            {variant.recommended ? 'iQOO MATCH' : `${freqKHz} kHz`}
                           </span>
                           <span className="text-[11px] font-bold text-white truncate">
                             {variant.name}

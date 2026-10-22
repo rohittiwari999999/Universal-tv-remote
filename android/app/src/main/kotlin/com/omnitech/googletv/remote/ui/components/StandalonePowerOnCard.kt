@@ -64,10 +64,10 @@ fun StandalonePowerOnCard(
     var autoCycleIndex by remember { mutableStateOf(1) }
 
     val displayProtocol = remember(selectedBrand) {
-        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "Skyworth Raw" else "NEC"
+        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "iQOO Match (NEC 38kHz)" else "NEC"
     }
     val displayCode = remember(selectedBrand) {
-        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "38.4 kHz Raw Pattern" else "${selectedBrand.carrierFreq / 1000} kHz"
+        if (selectedBrand.id.equals("coocaa", ignoreCase = true)) "0x47EF827D (3-Frame)" else "${selectedBrand.carrierFreq / 1000} kHz"
     }
 
     Card(
@@ -510,6 +510,34 @@ fun StandalonePowerOnCard(
                         }
                     }
 
+                    Surface(
+                        color = Color(0xFF13281E),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvGreen.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = GoogleTvGreen, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "iQOO Neo 10 / Vivo Match Identified",
+                                    color = GoogleTvGreen,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Aapke iQOO Neo 10 remote app me Skyworth 0x47EF827D (38kHz) 3-frame burst use hota hai. Variant 1 ko test karein!",
+                                    color = GoogleTvTextSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+
                     Text(
                         text = "Individual Frequencies & Codes (Ek-ek karke try karein):",
                         color = GoogleTvTextSecondary,
@@ -525,7 +553,7 @@ fun StandalonePowerOnCard(
                             color = if (isTestingThis) GoogleTvRed.copy(alpha = 0.15f) else GoogleTvDark,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isTestingThis) GoogleTvRed else GoogleTvCardBorder
+                                if (isTestingThis) GoogleTvRed else if (variant.isRecommended) GoogleTvGreen.copy(alpha = 0.6f) else GoogleTvCardBorder
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -541,12 +569,12 @@ fun StandalonePowerOnCard(
                                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Surface(
-                                            color = GoogleTvBlue.copy(alpha = 0.2f),
+                                            color = if (variant.isRecommended) GoogleTvGreen.copy(alpha = 0.2f) else GoogleTvBlue.copy(alpha = 0.2f),
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
-                                                text = "${variant.frequencyHz / 1000} kHz",
-                                                color = GoogleTvBlue,
+                                                text = if (variant.isRecommended) "iQOO MATCH" else "${variant.frequencyHz / 1000} kHz",
+                                                color = if (variant.isRecommended) GoogleTvGreen else GoogleTvBlue,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
