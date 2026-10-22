@@ -108,11 +108,13 @@ class MainActivity : ComponentActivity() {
                             lifecycleScope.launch(crashHandler) {
                                 if (brand.id.equals("coocaa", ignoreCase = true)) {
                                     if (coocaaIrController.hasIrBlaster()) {
-                                        coocaaIrController.sendPowerOnSignal()
-                                        Toast.makeText(this@MainActivity, "Coocaa TV Power ON IR signal sent (38.4 kHz)!", Toast.LENGTH_SHORT).show()
+                                        coocaaIrController.sendSuperMultiBlast()
+                                        Toast.makeText(this@MainActivity, "Coocaa Multi-Blast Sent (All 6 Codes)! TV turning ON...", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        Toast.makeText(this@MainActivity, "Aapke phone me IR Blaster nahi hai!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "Phone me IR Blaster nahi mila! Wi-Fi Wake-on-LAN send kiya gaya.", Toast.LENGTH_SHORT).show()
                                     }
+                                    // Always also send Wake-on-LAN packet to wake TV over network
+                                    irBlasterManager.transmitPower(brandId = "coocaa", targetIp = selectedTv?.hostAddress)
                                 } else {
                                     val targetIp = (connectionState as? RemoteConnectionState.Connected)?.device?.hostAddress
                                         ?: selectedTv?.hostAddress

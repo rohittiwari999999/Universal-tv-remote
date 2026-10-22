@@ -4,7 +4,7 @@ import {
   Home, Mic, Volume2, VolumeX, Power, Settings, Send,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Play, Pause, FastForward, Rewind, CheckCircle2, AlertCircle,
-  Radio, Keyboard, Touchpad, Shield, Zap, Check
+  Radio, Keyboard, Touchpad, Shield, Zap, Check, Sparkles, Layers
 } from 'lucide-react';
 import { remoteSound } from '../utils/remoteSound';
 
@@ -26,8 +26,78 @@ export interface TvBrand {
   codeHex: string;
 }
 
+export interface CoocaaCodeVariant {
+  id: string;
+  name: string;
+  codeHex: string;
+  freq: number;
+  protocol: string;
+  description: string;
+  recommended?: boolean;
+}
+
+export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
+  {
+    id: 'super_blast',
+    name: 'SUPER BLAST (All 6 Codes)',
+    codeHex: 'ALL 6 CODES',
+    freq: 38400,
+    protocol: 'Multi-Frame NEC Burst',
+    description: 'Bheje sabhi 6 Coocaa TV power codes ek saath (Guaranteed wake-up)',
+    recommended: true
+  },
+  {
+    id: 'google_tv',
+    name: '1. Coocaa Google TV & Android TV',
+    codeHex: '0x00FF12ED',
+    freq: 38000,
+    protocol: 'NEC 32-bit (LSB)',
+    description: 'Official Skyworth/Coocaa Google TV standard power code'
+  },
+  {
+    id: 's6g_y72',
+    name: '2. Coocaa 4K Smart S6G / Y72',
+    codeHex: '0x707030CF',
+    freq: 38400,
+    protocol: 'NEC 32-bit (38.4kHz)',
+    description: 'Coocaa 43/50/55 inch 4K Smart TV series'
+  },
+  {
+    id: 'corrected_9ms',
+    name: '3. Coocaa Standard 9ms Leader Burst',
+    codeHex: '0x707030CF (9ms AGC)',
+    freq: 38400,
+    protocol: 'Standard 9000µs NEC',
+    description: 'Deep sleep wake-up pattern with 9000µs AGC leading burst'
+  },
+  {
+    id: 'coolita',
+    name: '4. Coocaa Coolita / 32S3U / 40S3U',
+    codeHex: '0x01FE48B7',
+    freq: 38000,
+    protocol: 'NEC 32-bit',
+    description: 'Coocaa Coolita OS aur 32-40 inch Smart TVs'
+  },
+  {
+    id: 'skyworth_alt',
+    name: '5. Skyworth Android TV Alt',
+    codeHex: '0x00FF02FD',
+    freq: 38000,
+    protocol: 'NEC 32-bit',
+    description: 'Skyworth universal power code variant'
+  },
+  {
+    id: 'raw_user',
+    name: '6. Custom 68-Pulse Array',
+    codeHex: 'RAW [1901, 4453...]',
+    freq: 38400,
+    protocol: 'Custom Raw Microseconds',
+    description: 'User exact 68-pulse timing pattern'
+  }
+];
+
 export const SUPPORTED_TV_BRANDS: TvBrand[] = [
-  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth 68-pulse IR (38.4 kHz)', carrierFreq: 38400, protocol: 'NEC 38.4kHz 68-pulse', codeHex: '0x707030CF' },
+  { id: 'coocaa', name: 'Coocaa TV', description: 'Coocaa / Skyworth Multi-Code (38.4 kHz)', carrierFreq: 38400, protocol: 'NEC Multi-Burst', codeHex: '0x00FF12ED / 0x707030CF' },
   { id: 'samsung', name: 'Samsung TV', description: 'Samsung 38kHz Power Code', carrierFreq: 38000, protocol: 'Samsung 32-bit', codeHex: '0xE0E040BF' },
   { id: 'lg', name: 'LG TV', description: 'LG NEC 38kHz Power Code', carrierFreq: 38000, protocol: 'NEC 32-bit', codeHex: '0x20DF10EF' },
   { id: 'sony', name: 'Sony TV', description: 'Sony SIRC 40kHz 12-bit Power Code', carrierFreq: 40000, protocol: 'SIRC 12-bit', codeHex: '0x0A90' },
@@ -81,7 +151,17 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
       return SUPPORTED_TV_BRANDS[0];
     }
   });
+  const [selectedCoocaaVariant, setSelectedCoocaaVariant] = useState<CoocaaCodeVariant>(() => {
+    try {
+      const saved = localStorage.getItem('selected_coocaa_variant');
+      return COOCAA_VARIANTS.find(v => v.id === saved) || COOCAA_VARIANTS[0];
+    } catch {
+      return COOCAA_VARIANTS[0];
+    }
+  });
   const [showBrandModal, setShowBrandModal] = useState(false);
+  const [showCoocaaTesterModal, setShowCoocaaTesterModal] = useState(false);
+  const [testedVariantId, setTestedVariantId] = useState<string | null>(null);
   const [isPowerBlasting, setIsPowerBlasting] = useState(false);
   const [irToastMessage, setIrToastMessage] = useState<string | null>(null);
 
@@ -281,8 +361,12 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     handleSelectTv(manualTv);
   };
 
-  // IR Blaster Power ON Transmission (with Coocaa TV NEC 38kHz code 0x707030CF)
+  // IR Blaster Power ON Transmission (with Coocaa Multi-Blast and brand presets)
   const handleTransmitPower = () => {
+    if (selectedBrand.id === 'coocaa') {
+      handleTransmitCoocaaVariant(selectedCoocaaVariant);
+      return;
+    }
     remoteSound.click();
     setIsPowerBlasting(true);
     setIrToastMessage(`IR Power Code Sent: ${selectedBrand.name} (${selectedBrand.codeHex} @ ${selectedBrand.carrierFreq / 1000}kHz)`);
@@ -296,6 +380,39 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
     setTimeout(() => {
       setIrToastMessage(null);
     }, 3500);
+  };
+
+  const handleTransmitCoocaaVariant = (variant: CoocaaCodeVariant) => {
+    remoteSound.click();
+    setIsPowerBlasting(true);
+    setSelectedCoocaaVariant(variant);
+    setTestedVariantId(variant.id);
+    try {
+      localStorage.setItem('selected_coocaa_variant', variant.id);
+    } catch {
+      // ignore
+    }
+
+    const isSuper = variant.id === 'super_blast';
+    const toastText = isSuper
+      ? `⚡ SUPER MULTI-BLAST: Fired all 6 Coocaa TV Power codes (2x Repeat)!`
+      : `Coocaa IR Fired: ${variant.name} (${variant.codeHex} @ ${variant.freq / 1000}kHz)`;
+
+    setIrToastMessage(toastText);
+    onTvPowerToggle();
+    onTvAction(
+      isSuper
+        ? `[IR BLASTER] Fired SUPER MULTI-BLAST for Coocaa TV: Google TV (0x00FF12ED) + S6G/Y72 (0x707030CF) + 9ms AGC + Coolita (0x01FE48B7) + Skyworth Alt + Raw 68-pulse + Dual Wake-on-LAN!`
+        : `[IR BLASTER] Transmitted Coocaa TV ${variant.name} [${variant.codeHex}] at ${variant.freq}Hz (Dual-Frame Repeat) + Wake-on-LAN`
+    );
+
+    setTimeout(() => {
+      setIsPowerBlasting(false);
+    }, 1400);
+
+    setTimeout(() => {
+      setIrToastMessage(null);
+    }, 4000);
   };
 
   const handleSelectBrand = (brand: TvBrand) => {
@@ -422,10 +539,19 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               <div className="flex items-center justify-between mt-1.5 px-1 text-[9.5px]">
                 <div className="flex items-center gap-1.5 text-slate-400">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
-                  <span>IR Ready • {selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                  <span>IR Ready • {selectedBrand.name}</span>
                 </div>
-                {selectedBrand.id === 'coocaa' && (
-                  <span className="font-mono text-blue-400 font-bold">NEC 0x707030CF</span>
+                {selectedBrand.id === 'coocaa' ? (
+                  <button
+                    onClick={() => { remoteSound.click(); setShowCoocaaTesterModal(true); }}
+                    className="font-mono text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 bg-cyan-950/70 border border-cyan-500/40 px-1.5 py-0.5 rounded text-[8.5px] hover:border-cyan-400 transition-colors"
+                    title="Click to test all 6 Coocaa TV power codes"
+                  >
+                    <Layers className="w-2.5 h-2.5" />
+                    <span>{selectedCoocaaVariant.id === 'super_blast' ? '6-Code Multi-Blast' : selectedCoocaaVariant.name.slice(0, 15)}</span>
+                  </button>
+                ) : (
+                  <span className="font-mono text-blue-400 font-bold">{selectedBrand.codeHex}</span>
                 )}
               </div>
             </div>
@@ -786,10 +912,19 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               <div className="flex items-center justify-between mt-1.5 px-1 text-[9.5px]">
                 <div className="flex items-center gap-1.5 text-slate-400">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
-                  <span>IR Ready • {selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                  <span>IR Ready • {selectedBrand.name}</span>
                 </div>
-                {selectedBrand.id === 'coocaa' && (
-                  <span className="font-mono text-blue-400 font-bold">NEC 0x707030CF</span>
+                {selectedBrand.id === 'coocaa' ? (
+                  <button
+                    onClick={() => { remoteSound.click(); setShowCoocaaTesterModal(true); }}
+                    className="font-mono text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 bg-cyan-950/70 border border-cyan-500/40 px-1.5 py-0.5 rounded text-[8.5px] hover:border-cyan-400 transition-colors"
+                    title="Click to test all 6 Coocaa TV power codes"
+                  >
+                    <Layers className="w-2.5 h-2.5" />
+                    <span>{selectedCoocaaVariant.id === 'super_blast' ? '6-Code Multi-Blast' : selectedCoocaaVariant.name.slice(0, 15)}</span>
+                  </button>
+                ) : (
+                  <span className="font-mono text-blue-400 font-bold">{selectedBrand.codeHex}</span>
                 )}
               </div>
             </div>
@@ -876,12 +1011,12 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
                 Google TV pair na ho paye to pehle IR blaster se TV ON karein taaki TV Wi-Fi se connect ho aur phir pair ho sake easily.
               </p>
 
-              {/* Large Standalone Power ON Button */}
+              {/* Large Standalone Power ON Button (Fires Multi-Blast for Coocaa) */}
               <button
                 onClick={() => {
                   handleTransmitPower();
                   // Re-trigger network discovery scan after waking TV
-                  setTimeout(() => startAutoDiscovery(), 1200);
+                  setTimeout(() => startAutoDiscovery(), 1400);
                 }}
                 className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${
                   isPowerBlasting
@@ -891,18 +1026,49 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
               >
                 <Power className="w-4 h-4 shrink-0" />
                 <span className="tracking-wide text-xs font-black">
-                  {isPowerBlasting ? 'TRANSMITTING IR CODE...' : `POWER ON ${selectedBrand.name.toUpperCase()} (IR BLASTER)`}
+                  {isPowerBlasting
+                    ? 'TRANSMITTING IR CODE...'
+                    : selectedBrand.id === 'coocaa'
+                    ? selectedCoocaaVariant.id === 'super_blast'
+                      ? 'POWER ON COOCAA (SUPER MULTI-BLAST)'
+                      : `POWER ON COOCAA (${selectedCoocaaVariant.name.slice(0, 16)})`
+                    : `POWER ON ${selectedBrand.name.toUpperCase()} (IR BLASTER)`}
                 </span>
               </button>
+
+              {/* Coocaa 6-Code Multi-Blast & Tester Callout Button */}
+              {selectedBrand.id === 'coocaa' && (
+                <button
+                  onClick={() => {
+                    remoteSound.click();
+                    setShowCoocaaTesterModal(true);
+                  }}
+                  className="w-full mt-2 py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-blue-950/70 via-indigo-950/70 to-purple-950/70 border border-blue-500/40 hover:border-blue-400 text-blue-300 hover:text-white text-[10px] font-bold flex items-center justify-between transition-all shadow-sm group"
+                >
+                  <div className="flex items-center gap-1.5 text-left">
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span>TV ON nahi hua? Test All 6 Codes</span>
+                  </div>
+                  <span className="text-[9px] font-mono bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/30">
+                    6 Codes / Blast ➔
+                  </span>
+                </button>
+              )}
 
               <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-800/80 text-[9px] text-slate-400">
                 <span className="flex items-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPowerBlasting ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
-                  <span>{selectedBrand.name} ({selectedBrand.carrierFreq / 1000} kHz)</span>
+                  <span>{selectedBrand.name}</span>
                 </span>
-                <span className="font-mono text-blue-400 font-bold">
-                  {selectedBrand.protocol} {selectedBrand.codeHex}
-                </span>
+                {selectedBrand.id === 'coocaa' ? (
+                  <span className="font-mono text-cyan-400 font-bold truncate max-w-[170px]">
+                    {selectedCoocaaVariant.id === 'super_blast' ? '⚡ 6 Codes Multi-Blast' : selectedCoocaaVariant.codeHex}
+                  </span>
+                ) : (
+                  <span className="font-mono text-blue-400 font-bold">
+                    {selectedBrand.protocol} {selectedBrand.codeHex}
+                  </span>
+                )}
               </div>
             </div>
 
