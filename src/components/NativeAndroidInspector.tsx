@@ -190,50 +190,60 @@ class IrBlasterManager(private val context: Context) {
       name: 'CoocaaIrController.kt',
       path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/CoocaaIrController.kt',
       language: 'kotlin',
-      description: 'Dedicated Coocaa / Skyworth TV IR Blaster Controller using ConsumerIrManager with 38.4 kHz carrier and exact 68-pulse timing pattern.',
+      description: 'Advanced Coocaa TV IR Controller supporting all 6 power codes (Google TV, 4K S6G/Y72, Coolita, 9ms AGC Leader, Skyworth Alt, Raw) and Super Multi-Blast.',
       code: `package com.omnitech.googletv.remote.ir
 
 import android.content.Context
 import android.hardware.ConsumerIrManager
+import kotlinx.coroutines.delay
 
 class CoocaaIrController(private val context: Context) {
-
-    // ConsumerIrManager service ko initialize karna
     private val irManager: ConsumerIrManager? by lazy {
         context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
     }
 
-    // Check karein ki phone me IR blaster available hai ya nahi
-    fun hasIrBlaster(): Boolean {
-        return irManager?.hasIrEmitter() == true
-    }
+    fun hasIrBlaster(): Boolean = irManager?.hasIrEmitter() == true
 
     companion object {
-        // Coocaa / Skyworth TV ki standard carrier frequency (Hz me)
-        const val CARRIER_FREQUENCY = 38400
+        const val FREQ_38400 = 38400
+        const val FREQ_38000 = 38000
 
-        // Coocaa TV ke Power button ka IR timing pattern (microseconds me)
-        val COOCAA_POWER_PATTERN = intArrayOf(
-            1901, 4453, 625, 1614, 625, 1588, 625, 1614, 625, 442,
-            625, 442, 625, 468, 625, 442, 625, 494, 572, 1614,
-            625, 1588, 625, 1614, 625, 494, 572, 442, 651, 442,
-            625, 442, 625, 442, 625, 1614, 625, 1588, 651, 1588,
-            625, 442, 625, 494, 598, 442, 625, 442, 625, 520,
-            572, 442, 625, 442, 625, 442, 651, 1588, 625, 1614,
-            625, 1588, 625, 1614, 625, 1588, 625, 48958
-        )
+        // 1. Official Coocaa Google TV & Android TV (0x00FF12ED)
+        val PATTERN_GOOGLE_TV = buildStandardNec(0x00, 0xFF, 0x12, 0xED)
+        // 2. Coocaa 4K S6G / Y72 Series (0x707030CF)
+        val PATTERN_S6G_Y72 = buildStandardNec(0x70, 0x70, 0x30, 0xCF)
+        // 3. Coocaa Coolita / 32S3U / 40S3U (0x01FE48B7)
+        val PATTERN_COOLITA = buildStandardNec(0x01, 0xFE, 0x48, 0xB7)
+        // 4. Skyworth Android TV Alt (0x00FF02FD)
+        val PATTERN_SKYWORTH_ALT = buildStandardNec(0x00, 0xFF, 0x02, 0xFD)
+        // 5. Corrected 9000µs AGC Leader Burst (Deep Standby Wake)
+        val CORRECTED_HEADER_PATTERN = intArrayOf(9000, 4453, 625, 1614, ...)
+        // 6. User Raw 68-pulse Array
+        val RAW_USER_PATTERN = intArrayOf(1901, 4453, 625, 1614, ...)
     }
 
-    // Coocaa TV ko Power ON karne ka function
-    fun sendPowerOnSignal(): Boolean {
-        if (!hasIrBlaster()) {
-            // Agar phone me IR sensor nahi hai
-            return false
+    // SUPER MULTI-BLAST: Fires all 6 codes sequentially with 2x frame repeat!
+    suspend fun sendSuperMultiBlast(): Boolean {
+        if (!hasIrBlaster()) return false
+        val codes = listOf(
+            PATTERN_GOOGLE_TV to FREQ_38000,
+            PATTERN_S6G_Y72 to FREQ_38400,
+            CORRECTED_HEADER_PATTERN to FREQ_38400,
+            PATTERN_COOLITA to FREQ_38000,
+            PATTERN_SKYWORTH_ALT to FREQ_38000,
+            RAW_USER_PATTERN to FREQ_38400
+        )
+        for ((pattern, freq) in codes) {
+            irManager?.transmit(freq, pattern)
+            delay(50)
+            irManager?.transmit(freq, pattern) // 2nd repeat frame
+            delay(65)
         }
-
-        // IR signal ko air me transmit karna
-        irManager?.transmit(CARRIER_FREQUENCY, COOCAA_POWER_PATTERN)
         return true
+    }
+
+    suspend fun sendPowerOnSignal(codeIndex: Int = 0): Boolean {
+        return if (codeIndex == 0) sendSuperMultiBlast() else transmitSinglePattern(codeIndex)
     }
 }`
     },
