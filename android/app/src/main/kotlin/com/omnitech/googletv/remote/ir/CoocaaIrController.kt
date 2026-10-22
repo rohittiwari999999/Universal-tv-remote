@@ -110,6 +110,13 @@ class CoocaaIrController(private val context: Context) {
 
         // 5. Coocaa Universal Power 0x04FB01FE
         val PATTERN_UNIVERSAL = buildStandardNec(0x04, 0xFB, 0x01, 0xFE)
+
+        /**
+         * Primary Coocaa TV Power Pattern (38.4 kHz, 68 pulses).
+         * Direct reference needed by IrBlasterManager and external activities.
+         */
+        @JvmField
+        val COOCAA_POWER_PATTERN: IntArray = RAW_USER_PATTERN
     }
 
     /**
@@ -128,6 +135,30 @@ class CoocaaIrController(private val context: Context) {
             5 -> transmitSinglePattern(CORRECTED_HEADER_PATTERN, FREQ_38400, "Coocaa 9ms Lead Burst")
             6 -> transmitSinglePattern(RAW_USER_PATTERN, FREQ_38400, "Coocaa Raw 68-pulse")
             else -> sendSuperMultiBlast()
+        }
+    }
+
+    /**
+     * Synchronous power signal transmission (can be invoked directly in standard OnClickListener).
+     */
+    fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean {
+        if (!hasIrBlaster()) return false
+        val pattern = when (codeIndex) {
+            1 -> PATTERN_GOOGLE_TV
+            2 -> PATTERN_S6G_Y72
+            3 -> PATTERN_COOLITA
+            4 -> PATTERN_SKYWORTH_ALT
+            5 -> CORRECTED_HEADER_PATTERN
+            else -> COOCAA_POWER_PATTERN
+        }
+        val freq = if (codeIndex == 1 || codeIndex == 3 || codeIndex == 4) FREQ_38000 else FREQ_38400
+        return try {
+            irManager?.transmit(freq, pattern)
+            Log.i(TAG, "Transmitted sync IR signal at ${freq}Hz")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error transmitting sync IR: ${e.message}", e)
+            false
         }
     }
 

@@ -220,7 +220,14 @@ class CoocaaIrController(private val context: Context) {
         val CORRECTED_HEADER_PATTERN = intArrayOf(9000, 4453, 625, 1614, ...)
         // 6. User Raw 68-pulse Array
         val RAW_USER_PATTERN = intArrayOf(1901, 4453, 625, 1614, ...)
+
+        // Primary Coocaa Pattern (Referenced by IrBlasterManager)
+        @JvmField
+        val COOCAA_POWER_PATTERN: IntArray = RAW_USER_PATTERN
     }
+
+    // Direct synchronous call for standard View.OnClickListener
+    fun sendPowerOnSignalSync(codeIndex: Int = 0): Boolean { ... }
 
     // SUPER MULTI-BLAST: Fires all 6 codes sequentially with 2x frame repeat!
     suspend fun sendSuperMultiBlast(): Boolean {
