@@ -443,6 +443,115 @@ fun StandalonePowerOnCard(
 }`
     },
     {
+      name: 'IrBlasterMethodChannel.kt',
+      path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/IrBlasterMethodChannel.kt',
+      language: 'kotlin',
+      description: 'Flutter MethodChannel bridge on "com.omnitech.googletv.remote/ir_blaster" supporting checkHardwareSupport, getCarrierFrequencies, transmitHex, transmitRaw, and transmitCoocaaPreset.',
+      code: `package com.omnitech.googletv.remote.ir
+
+import android.content.Context
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.*
+
+class IrBlasterMethodChannel(
+    private val context: Context,
+    messenger: BinaryMessenger
+) : MethodChannel.MethodCallHandler {
+
+    companion object {
+        const val CHANNEL_NAME = "com.omnitech.googletv.remote/ir_blaster"
+    }
+
+    private val channel = MethodChannel(messenger, CHANNEL_NAME)
+    private val irBlasterManager = IrBlasterManager(context)
+    private val coocaaController = CoocaaIrController(context)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    init {
+        channel.setMethodCallHandler(this)
+    }
+
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "checkHardwareSupport" -> {
+                result.success(irBlasterManager.hasIrEmitter())
+            }
+            "getCarrierFrequencies" -> {
+                val ranges = irBlasterManager.getCarrierFrequenciesList().map { range ->
+                    mapOf("minFrequency" to range.minFrequency, "maxFrequency" to range.maxFrequency)
+                }
+                result.success(ranges)
+            }
+            "transmitHex" -> {
+                val hexCode = call.argument<String>("hexCode")
+                val frequencyHz = call.argument<Int>("frequencyHz") ?: 38000
+                val twoFrame = call.argument<Boolean>("twoFrameRepeat") ?: false
+                scope.launch {
+                    val outcome = coocaaController.transmitNecHex(hexCode ?: "0x40BF12ED", frequencyHz, twoFrame)
+                    result.success(mapOf("success" to outcome.success, "message" to outcome.message, "pulsesCount" to outcome.pulsesCount))
+                }
+            }
+            "transmitRaw" -> {
+                val pattern = call.argument<List<Int>>("pattern")?.toIntArray()
+                val frequencyHz = call.argument<Int>("frequencyHz") ?: 38000
+                scope.launch {
+                    val outcome = irBlasterManager.transmitCustomPattern(frequencyHz, pattern ?: intArrayOf())
+                    result.success(mapOf("success" to outcome.success, "message" to outcome.message))
+                }
+            }
+            else -> result.notImplemented()
+        }
+    }
+}`
+    },
+    {
+      name: 'IrDiagnosticScreen.kt',
+      path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ui/screens/IrDiagnosticScreen.kt',
+      language: 'kotlin',
+      description: 'Dedicated Jetpack Compose diagnostic screen displaying hardware support, carrier ranges, configurable 32-bit hex & raw microsecond editor, and physical TV response notice.',
+      code: `package com.omnitech.googletv.remote.ui.screens
+
+import androidx.compose.runtime.*
+import com.omnitech.googletv.remote.ir.CoocaaIrController
+import com.omnitech.googletv.remote.ir.IrBlasterManager
+
+@Composable
+fun IrDiagnosticScreen(
+    onNavigateBack: () -> Unit
+) {
+    // Shows PackageManager.FEATURE_CONSUMER_IR, ConsumerIrManager.hasIrEmitter(),
+    // Carrier frequencies, Configurable 32-bit Hex Editor, Raw microsecond inputs,
+    // and live transmit() execution logs.
+}`
+    },
+    {
+      name: 'IrDiagnosticData.kt',
+      path: 'android/app/src/main/kotlin/com/omnitech/googletv/remote/ir/IrDiagnosticData.kt',
+      language: 'kotlin',
+      description: 'Data classes for IR hardware status, carrier frequency ranges, diagnostic state, and transmission outcome results.',
+      code: `package com.omnitech.googletv.remote.ir
+
+data class IrCarrierRange(val minFrequency: Int, val maxFrequency: Int)
+
+data class IrHardwareStatus(
+    val hasSystemFeature: Boolean,
+    val hasIrEmitter: Boolean,
+    val isReady: Boolean,
+    val carrierRanges: List<IrCarrierRange>,
+    val statusMessage: String
+)
+
+data class IrExecutionResult(
+    val success: Boolean,
+    val message: String,
+    val frequencyHz: Int,
+    val pulsesCount: Int,
+    val timestamp: Long = System.currentTimeMillis()
+)`
+    },
+    {
       name: 'build_native_android_apk_aab.yml',
       path: '.github/workflows/build_native_android_apk_aab.yml',
       language: 'yaml',

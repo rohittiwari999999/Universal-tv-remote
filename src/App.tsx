@@ -6,9 +6,11 @@ import {
 import { GoogleTvMobileApp } from './components/GoogleTvMobileApp';
 import { GoogleTvScreenSimulation } from './components/GoogleTvScreenSimulation';
 import { NativeAndroidInspector } from './components/NativeAndroidInspector';
+import { IrDiagnosticModal } from './components/IrDiagnosticModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'app' | 'code' | 'build'>('app');
+  const [showIrDiagnostics, setShowIrDiagnostics] = useState(false);
 
   // Simulated TV State
   const [tvName, setTvName] = useState('Chromecast with Google TV');
@@ -151,7 +153,7 @@ export default function App() {
             }`}
           >
             <Code2 className="w-3.5 h-3.5" />
-            <span>Native Kotlin Code (9 Files)</span>
+            <span>Native Kotlin Code (12 Files)</span>
           </button>
 
           <button
@@ -164,6 +166,15 @@ export default function App() {
           >
             <FolderCheck className="w-3.5 h-3.5" />
             <span>Build APK &amp; AAB</span>
+          </button>
+
+          <button
+            onClick={() => setShowIrDiagnostics(true)}
+            className="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 bg-red-950/70 hover:bg-red-900/80 text-red-300 border border-red-500/40 shadow-sm"
+            title="Inspect iQOO Neo 10 IR hardware, frequencies, and Coocaa codes"
+          >
+            <Radio className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+            <span>IR Diagnostics</span>
           </button>
         </nav>
       </header>
@@ -325,6 +336,13 @@ export default function App() {
         )}
 
       </main>
+
+      {/* IR Blaster Diagnostic Modal */}
+      <IrDiagnosticModal
+        isOpen={showIrDiagnostics}
+        onClose={() => setShowIrDiagnostics(false)}
+        onTransmitSimulation={addLog}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500 font-mono">

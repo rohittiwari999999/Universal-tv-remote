@@ -76,11 +76,208 @@ class CoocaaIrController(private val context: Context) {
         return ALL_VARIANTS.find { it.index == idx } ?: ALL_VARIANTS.first()
     }
 
+    private val KEY_CUSTOM_HEX = "custom_coocaa_hex"
+    private val KEY_CUSTOM_FREQ = "custom_coocaa_freq"
+    private val KEY_CUSTOM_REPEAT = "custom_coocaa_repeat"
+    private val KEY_CUSTOM_RAW = "custom_coocaa_raw"
+
+    fun getCustomHexCode(): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CUSTOM_HEX, "0x40BF12ED") ?: "0x40BF12ED"
+    }
+
+    fun setCustomHexCode(hex: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_CUSTOM_HEX, hex.trim()).apply()
+    }
+
+    fun getCustomFrequency(): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_CUSTOM_FREQ, 38000)
+    }
+
+    fun setCustomFrequency(freqHz: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_CUSTOM_FREQ, freqHz).apply()
+    }
+
+    fun getCustomRepeat(): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_CUSTOM_REPEAT, 1)
+    }
+
+    fun setCustomRepeat(repeatCount: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_CUSTOM_REPEAT, repeatCount).apply()
+    }
+
+    fun getCustomRawPulses(): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CUSTOM_RAW, "") ?: ""
+    }
+
+    fun setCustomRawPulses(csv: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_CUSTOM_RAW, csv.trim()).apply()
+    }
+
+    /**
+     * Transmits configured code and returns IrExecutionResult with detailed diagnostics.
+     */
+    fun transmitConfiguredCode(hexCode: String, frequencyHz: Int = 38000, repeatCount: Int = 1): IrExecutionResult {
+        if (!hasIrBlaster()) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_NO_EMITTER",
+                message = "Device has no active IR emitter hardware (hasIrEmitter = false).",
+                carrierFreqHz = frequencyHz,
+                pulseCount = 0,
+                durationMicros = 0L,
+                hexCode = hexCode,
+                errorDetails = "ConsumerIrManager.hasIrEmitter() returned false."
+            )
+        }
+
+        val pattern = parseNecHexToPattern(hexCode, repeatCount)
+            ?: return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_INVALID_PATTERN",
+                message = "Invalid 32-bit HEX code: '$hexCode'. Format must be 8 hex characters, e.g. 0x40BF12ED.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = 0,
+                durationMicros = 0L,
+                hexCode = hexCode,
+                errorDetails = "Hex parse failed."
+            )
+
+        var totalMicros = 0L
+        for (p in pattern) totalMicros += p
+
+        return try {
+            irManager?.transmit(frequencyHz, pattern)
+            Log.i(TAG, "Transmitted configured code $hexCode @ ${frequencyHz}Hz ($repeatCount frames)")
+            IrExecutionResult(
+                apiExecutedSuccessfully = true,
+                status = "STATUS_TRANSMITTED",
+                message = "ConsumerIrManager.transmit() executed successfully (${pattern.size} pulses @ ${frequencyHz / 1000}kHz, Code: $hexCode). Verify visually if Coocaa Y74 Plus responds.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = pattern.size,
+                durationMicros = totalMicros,
+                hexCode = hexCode
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "ConsumerIrManager.transmit threw exception: ${e.message}", e)
+            IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_TRANSMISSION_ERROR",
+                message = "IR transmit error: ${e.message}",
+                carrierFreqHz = frequencyHz,
+                pulseCount = pattern.size,
+                durationMicros = totalMicros,
+                hexCode = hexCode,
+                errorDetails = e.stackTraceToString()
+            )
+        }
+    }
+
+    /**
+     * Transmits raw microsecond pulses string.
+     */
+    fun transmitRawTimingString(rawCsv: String, frequencyHz: Int = 38000): IrExecutionResult {
+        if (!hasIrBlaster()) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_NO_EMITTER",
+                message = "Device has no active IR emitter hardware.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = 0,
+                durationMicros = 0L,
+                errorDetails = "hasIrEmitter() returned false."
+            )
+        }
+
+        val pattern = parseRawPulses(rawCsv)
+            ?: return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_INVALID_PATTERN",
+                message = "Invalid raw timings. Provide comma-separated positive microsecond numbers (e.g. 9000, 4500, 560, 560...).",
+                carrierFreqHz = frequencyHz,
+                pulseCount = 0,
+                durationMicros = 0L,
+                errorDetails = "Failed to parse pulse values."
+            )
+
+        val safePattern = if (pattern.size % 2 == 0) pattern.copyOf(pattern.size - 1) else pattern
+        var totalMicros = 0L
+        for (p in safePattern) totalMicros += p
+
+        return try {
+            irManager?.transmit(frequencyHz, safePattern)
+            Log.i(TAG, "Transmitted raw timings: ${safePattern.size} pulses @ ${frequencyHz}Hz")
+            IrExecutionResult(
+                apiExecutedSuccessfully = true,
+                status = "STATUS_TRANSMITTED",
+                message = "ConsumerIrManager.transmit() executed successfully (${safePattern.size} pulses @ ${frequencyHz / 1000}kHz). Verify visually if TV responds.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = safePattern.size,
+                durationMicros = totalMicros
+            )
+        } catch (e: Exception) {
+            IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_TRANSMISSION_ERROR",
+                message = "Hardware transmit error: ${e.message}",
+                carrierFreqHz = frequencyHz,
+                pulseCount = safePattern.size,
+                durationMicros = totalMicros,
+                errorDetails = e.stackTraceToString()
+            )
+        }
+    }
+
     companion object {
         const val FREQ_38000 = 38000
         const val FREQ_38400 = 38400
         const val FREQ_36000 = 36000
         const val FREQ_40000 = 40000
+
+        /**
+         * Parses a 32-bit hex code string (e.g. "0x40BF12ED", "40BF12ED", "0x47EF827D") into an NEC pattern array.
+         */
+        fun parseNecHexToPattern(hexStr: String, repeatCount: Int = 1): IntArray? {
+            return try {
+                val cleanHex = hexStr.trim().removePrefix("0x").removePrefix("0X")
+                if (cleanHex.length != 8) return null
+                val num = cleanHex.toLong(16)
+                val b0 = ((num shr 24) and 0xFF).toInt()
+                val b1 = ((num shr 16) and 0xFF).toInt()
+                val b2 = ((num shr 8) and 0xFF).toInt()
+                val b3 = (num and 0xFF).toInt()
+                buildStandardNec(b0, b1, b2, b3, repeatCount)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        /**
+         * Parses a comma-separated or space-separated list of integer microsecond timings into an IntArray.
+         */
+        fun parseRawPulses(rawString: String): IntArray? {
+            return try {
+                val tokens = rawString.trim()
+                    .replace(",", " ")
+                    .replace(";", " ")
+                    .replace("\n", " ")
+                    .split("\\s+".toRegex())
+                    .filter { it.isNotBlank() }
+                if (tokens.isEmpty()) return null
+                val list = tokens.map { it.toInt() }
+                if (list.any { it <= 0 }) return null
+                list.toIntArray()
+            } catch (e: Exception) {
+                null
+            }
+        }
 
         /**
          * Builds an authentic standard NEC 32-bit timing pattern (LSB first per NEC standard).

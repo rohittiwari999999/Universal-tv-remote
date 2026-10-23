@@ -1,6 +1,7 @@
 package com.omnitech.googletv.remote.ir
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.ConsumerIrManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +84,177 @@ class IrBlasterManager(private val context: Context) {
             consumerIrManager?.hasIrEmitter() == true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /**
+     * Checks whether the system reports the FEATURE_CONSUMER_IR hardware feature via PackageManager.
+     */
+    fun hasSystemFeature(): Boolean {
+        return try {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_CONSUMER_IR)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Queries supported IR carrier frequency ranges using ConsumerIrManager.getCarrierFrequencies().
+     */
+    fun getCarrierFrequenciesList(): List<IrCarrierRange> {
+        val ranges = ArrayList<IrCarrierRange>()
+        try {
+            val freqRanges = consumerIrManager?.carrierFrequencies
+            if (freqRanges != null) {
+                for (range in freqRanges) {
+                    ranges.add(IrCarrierRange(range.minFrequency, range.maxFrequency))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error querying carrier frequencies: ${e.message}")
+        }
+        return ranges
+    }
+
+    /**
+     * Inspects hardware state and returns comprehensive diagnostic report.
+     */
+    fun getHardwareDiagnostic(): IrHardwareDiagnostic {
+        val hasFeature = hasSystemFeature()
+        val isService = (consumerIrManager != null)
+        val hasEmitter = hasIrEmitter()
+        val ranges = getCarrierFrequenciesList()
+
+        val status = when {
+            hasEmitter -> IrHardwareStatus.SUPPORTED_AND_READY
+            !hasFeature -> IrHardwareStatus.NO_SYSTEM_FEATURE
+            !isService -> IrHardwareStatus.SERVICE_UNAVAILABLE
+            else -> IrHardwareStatus.EMITTER_NOT_DETECTED
+        }
+
+        val summary = when (status) {
+            IrHardwareStatus.SUPPORTED_AND_READY ->
+                "Hardware IR Blaster detected and ready. Supported frequencies: ${if (ranges.isNotEmpty()) ranges.joinToString() else "Standard 30-60 kHz"}."
+            IrHardwareStatus.NO_SYSTEM_FEATURE ->
+                "PackageManager reports android.hardware.consumerir feature is missing on this device."
+            IrHardwareStatus.SERVICE_UNAVAILABLE ->
+                "ConsumerIrManager system service is null or unavailable on this Android build."
+            IrHardwareStatus.EMITTER_NOT_DETECTED ->
+                "ConsumerIrManager service is bound, but hasIrEmitter() returned false (IR HAL disabled or unavailable)."
+        }
+
+        return IrHardwareDiagnostic(
+            status = status,
+            hasSystemFeature = hasFeature,
+            isServiceAvailable = isService,
+            hasIrEmitter = hasEmitter,
+            supportedCarrierRanges = ranges,
+            diagnosticSummary = summary
+        )
+    }
+
+    /**
+     * Transmits a custom microsecond pulse pattern.
+     * Validates pattern length, timing values, carrier frequency, and executes ConsumerIrManager.transmit().
+     * Strictly separates API execution from confirmed physical TV reception.
+     */
+    fun transmitCustomPattern(frequencyHz: Int, pattern: IntArray, description: String = "Custom Pattern"): IrExecutionResult {
+        if (!hasIrEmitter()) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_NO_EMITTER",
+                message = "Device has no active IR emitter hardware (hasIrEmitter = false).",
+                carrierFreqHz = frequencyHz,
+                pulseCount = pattern.size,
+                durationMicros = 0L,
+                errorDetails = "ConsumerIrManager.hasIrEmitter() returned false."
+            )
+        }
+
+        if (consumerIrManager == null) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_SERVICE_UNAVAILABLE",
+                message = "ConsumerIrManager system service is unavailable.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = pattern.size,
+                durationMicros = 0L,
+                errorDetails = "Context.CONSUMER_IR_SERVICE was null."
+            )
+        }
+
+        if (frequencyHz <= 0 || frequencyHz > 100000) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_INVALID_FREQUENCY",
+                message = "Invalid carrier frequency: ${frequencyHz}Hz. Standard IR carrier is between 30,000 Hz and 60,000 Hz.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = pattern.size,
+                durationMicros = 0L,
+                errorDetails = "Frequency out of range (1 - 100,000 Hz)."
+            )
+        }
+
+        if (pattern.isEmpty()) {
+            return IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_INVALID_PATTERN",
+                message = "Pattern array is empty.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = 0,
+                durationMicros = 0L,
+                errorDetails = "Pattern array size was 0."
+            )
+        }
+
+        // Validate all pulses are positive
+        for (i in pattern.indices) {
+            if (pattern[i] <= 0) {
+                return IrExecutionResult(
+                    apiExecutedSuccessfully = false,
+                    status = "STATUS_INVALID_PATTERN",
+                    message = "Pattern contains non-positive microsecond pulse at index $i: ${pattern[i]}µs.",
+                    carrierFreqHz = frequencyHz,
+                    pulseCount = pattern.size,
+                    durationMicros = 0L,
+                    errorDetails = "Invalid pulse value at index $i."
+                )
+            }
+        }
+
+        // Android IR HAL requires array ending with Mark pulse (odd length).
+        // If even length, drop trailing space pulse to prevent HAL silent rejection.
+        val safePattern = if (pattern.size % 2 == 0) {
+            pattern.copyOf(pattern.size - 1)
+        } else {
+            pattern
+        }
+
+        var totalMicros = 0L
+        for (p in safePattern) totalMicros += p
+
+        return try {
+            consumerIrManager.transmit(frequencyHz, safePattern)
+            Log.i(TAG, "ConsumerIrManager.transmit executed: ${safePattern.size} pulses @ ${frequencyHz}Hz for $description")
+            IrExecutionResult(
+                apiExecutedSuccessfully = true,
+                status = "STATUS_TRANSMITTED",
+                message = "ConsumerIrManager.transmit() executed successfully (${safePattern.size} pulses @ ${frequencyHz / 1000}kHz). NOTE: This confirms phone hardware fired the signal; visually check if TV responds.",
+                carrierFreqHz = frequencyHz,
+                pulseCount = safePattern.size,
+                durationMicros = totalMicros
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "ConsumerIrManager.transmit threw an exception: ${e.message}", e)
+            IrExecutionResult(
+                apiExecutedSuccessfully = false,
+                status = "STATUS_TRANSMISSION_ERROR",
+                message = "Hardware transmit error: ${e.message}",
+                carrierFreqHz = frequencyHz,
+                pulseCount = safePattern.size,
+                durationMicros = totalMicros,
+                errorDetails = e.stackTraceToString()
+            )
         }
     }
 

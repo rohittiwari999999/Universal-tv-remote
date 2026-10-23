@@ -36,6 +36,7 @@ fun TopPowerBrandBar(
     hasIrEmitter: Boolean,
     onTransmitPower: (TvBrand) -> Unit,
     onSelectBrand: (TvBrand) -> Unit,
+    onOpenDiagnostics: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -220,7 +221,8 @@ fun TopPowerBrandBar(
 
     if (showCoocaaTesterDialog) {
         CoocaaFrequencyTesterDialog(
-            onDismiss = { showCoocaaTesterDialog = false }
+            onDismiss = { showCoocaaTesterDialog = false },
+            onOpenDiagnostics = onOpenDiagnostics
         )
     }
 

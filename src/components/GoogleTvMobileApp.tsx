@@ -4,9 +4,10 @@ import {
   Home, Mic, Volume2, VolumeX, Power, Settings, Send,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Play, Pause, FastForward, Rewind, CheckCircle2, AlertCircle,
-  Radio, Keyboard, Touchpad, Shield, Zap, Check, Sparkles, Layers
+  Radio, Keyboard, Touchpad, Shield, Zap, Check, Sparkles, Layers, Cpu
 } from 'lucide-react';
 import { remoteSound } from '../utils/remoteSound';
+import { IrDiagnosticModal } from './IrDiagnosticModal';
 
 export interface DiscoveredTvItem {
   id: string;
@@ -268,6 +269,7 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
   });
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [showCoocaaTesterModal, setShowCoocaaTesterModal] = useState(false);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [testedVariantId, setTestedVariantId] = useState<string | null>(null);
   const [isPowerBlasting, setIsPowerBlasting] = useState(false);
   const [irToastMessage, setIrToastMessage] = useState<string | null>(null);
@@ -1444,6 +1446,22 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
             </button>
           </div>
 
+          {/* Quick link to Hardware Diagnostics */}
+          <button
+            onClick={() => {
+              handleStopAutoCycle();
+              setShowCoocaaTesterModal(false);
+              setShowDiagnosticsModal(true);
+            }}
+            className="w-full py-1.5 px-2.5 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 border border-blue-500/40 text-blue-300 flex items-center justify-between text-[10px] font-semibold transition-colors mb-2"
+          >
+            <div className="flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-blue-400" />
+              <span>IR Blaster Hardware Diagnostics &amp; Custom Hex</span>
+            </div>
+            <span className="text-[9px] text-cyan-300 font-mono">Open &rarr;</span>
+          </button>
+
           {/* Scrollable Testing Area */}
           <div className="flex-1 my-2 space-y-2 overflow-y-auto pr-1">
             
@@ -1718,6 +1736,13 @@ export const GoogleTvMobileApp: React.FC<GoogleTvMobileAppProps> = ({
           </button>
         </div>
       )}
+
+      {/* Embedded IR Hardware Diagnostics Modal */}
+      <IrDiagnosticModal
+        isOpen={showDiagnosticsModal}
+        onClose={() => setShowDiagnosticsModal(false)}
+        onTransmitSimulation={onTvAction}
+      />
 
     </div>
   );

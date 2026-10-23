@@ -47,6 +47,7 @@ fun RemoteScreen(
     hasIrEmitter: Boolean = false,
     onTransmitPower: (TvBrand) -> Unit = {},
     onSelectBrand: (TvBrand) -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
     onDisconnect: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -77,7 +78,8 @@ fun RemoteScreen(
             selectedBrand = selectedBrand,
             hasIrEmitter = hasIrEmitter,
             onTransmitPower = onTransmitPower,
-            onSelectBrand = onSelectBrand
+            onSelectBrand = onSelectBrand,
+            onOpenDiagnostics = onOpenDiagnostics
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -135,19 +137,38 @@ fun RemoteScreen(
                 }
             }
 
-            IconButton(
-                onClick = onDisconnect,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(GoogleTvCard)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Exit Remote",
-                    tint = GoogleTvTextSecondary,
-                    modifier = Modifier.size(16.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onOpenDiagnostics,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(GoogleTvCard)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sensors,
+                        contentDescription = "Diagnostics",
+                        tint = GoogleTvGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onDisconnect,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(GoogleTvCard)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Exit Remote",
+                        tint = GoogleTvTextSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 

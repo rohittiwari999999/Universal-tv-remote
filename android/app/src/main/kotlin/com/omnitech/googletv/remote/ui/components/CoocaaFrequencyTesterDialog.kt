@@ -32,7 +32,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CoocaaFrequencyTesterDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenDiagnostics: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current

@@ -56,7 +56,8 @@ fun DiscoveryScreen(
     selectedBrand: TvBrand = IrBlasterManager.SUPPORTED_BRANDS.first(),
     hasIrEmitter: Boolean = false,
     onTransmitPower: (TvBrand) -> Unit = {},
-    onSelectBrand: (TvBrand) -> Unit = {}
+    onSelectBrand: (TvBrand) -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showManualDialog by remember { mutableStateOf(false) }
@@ -158,6 +159,22 @@ fun DiscoveryScreen(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Rescan",
                         tint = GoogleTvBlue
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onOpenDiagnostics,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(GoogleTvSurface)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sensors,
+                        contentDescription = "IR Blaster Diagnostics",
+                        tint = GoogleTvGreen
                     )
                 }
             }

@@ -27,6 +27,7 @@ import android.widget.Toast
 import com.omnitech.googletv.remote.ir.CoocaaIrController
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ir.TvBrand
+import com.omnitech.googletv.remote.ui.screens.IrDiagnosticScreen
 import com.omnitech.googletv.remote.ui.screens.RemoteScreen
 import com.omnitech.googletv.remote.ui.screens.SplashScreen
 import com.omnitech.googletv.remote.ui.theme.GoogleTvDark
@@ -79,8 +80,13 @@ class MainActivity : ComponentActivity() {
                     color = GoogleTvDark
                 ) {
                     var showSplashScreen by remember { mutableStateOf(true) }
+                    var showIrDiagnostics by remember { mutableStateOf(false) }
 
-                    if (showSplashScreen) {
+                    if (showIrDiagnostics) {
+                        IrDiagnosticScreen(
+                            onNavigateBack = { showIrDiagnostics = false }
+                        )
+                    } else if (showSplashScreen) {
                         SplashScreen(
                             onSplashFinished = {
                                 showSplashScreen = false
@@ -224,6 +230,7 @@ class MainActivity : ComponentActivity() {
                                 hasIrEmitter = hasIrEmitter,
                                 onTransmitPower = transmitPowerAction,
                                 onSelectBrand = selectBrandAction,
+                                onOpenDiagnostics = { showIrDiagnostics = true },
                                 onDisconnect = {
                                     // User explicitly tapped close (X) to pick/scan for another TV
                                     remoteEngine.disconnect()
@@ -312,7 +319,8 @@ class MainActivity : ComponentActivity() {
                                 selectedBrand = selectedBrand,
                                 hasIrEmitter = hasIrEmitter,
                                 onTransmitPower = transmitPowerAction,
-                                onSelectBrand = selectBrandAction
+                                onSelectBrand = selectBrandAction,
+                                onOpenDiagnostics = { showIrDiagnostics = true }
                             )
                         }
 
