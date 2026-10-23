@@ -140,7 +140,7 @@ fun CoocaaFrequencyTesterDialog(
                             text = if (isAutoTesting) {
                                 "Currently firing: ${currentAutoVariant?.name ?: "..."}\nTV ON hote hi 'STOP TEST' dabayein aur use Default set karein."
                             } else {
-                                "Phone ko TV ke aage rakhein. App har 3 second me 1-1 code test karega. TV jaise hi on ho, Pause karein:",
+                                "Phone ko TV ke aage rakhein. App har 3 second me 1-1 code test karega. TV jaise hi on ho, Pause karein:"
                             },
                             color = GoogleTvTextSecondary,
                             fontSize = 11.sp,

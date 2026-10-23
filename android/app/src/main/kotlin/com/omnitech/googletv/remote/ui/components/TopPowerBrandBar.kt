@@ -39,6 +39,7 @@ fun TopPowerBrandBar(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val coocaaController = remember { CoocaaIrController(context) }
     var showBrandDialog by remember { mutableStateOf(false) }
     var showCoocaaTesterDialog by remember { mutableStateOf(false) }
