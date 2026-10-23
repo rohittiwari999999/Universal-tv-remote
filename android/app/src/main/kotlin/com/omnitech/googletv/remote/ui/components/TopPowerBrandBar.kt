@@ -18,12 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.omnitech.googletv.remote.ir.CoocaaIrController
 import com.omnitech.googletv.remote.ir.IrBlasterManager
 import com.omnitech.googletv.remote.ir.TvBrand
 import com.omnitech.googletv.remote.ui.theme.*
@@ -36,9 +38,12 @@ fun TopPowerBrandBar(
     onSelectBrand: (TvBrand) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val coocaaController = remember { CoocaaIrController(context) }
     var showBrandDialog by remember { mutableStateOf(false) }
+    var showCoocaaTesterDialog by remember { mutableStateOf(false) }
     var isPowerBlasting by remember { mutableStateOf(false) }
+    val activeCoocaaVariant = remember(showCoocaaTesterDialog) { coocaaController.getSelectedVariant() }
 
     Column(
         modifier = modifier
@@ -100,7 +105,30 @@ fun TopPowerBrandBar(
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Coocaa Specific: Tune / Frequency Tester Quick Launcher
+            if (selectedBrand.id.equals("coocaa", ignoreCase = true)) {
+                IconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showCoocaaTesterDialog = true
+                    },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GoogleTvBlue.copy(alpha = 0.15f))
+                        .border(1.dp, GoogleTvBlue.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Tune Coocaa Frequencies",
+                        tint = GoogleTvBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
 
             // TV Brand Selector Button (Default: Coocaa TV)
             Surface(
@@ -111,12 +139,12 @@ fun TopPowerBrandBar(
                 color = GoogleTvCard,
                 shape = RoundedCornerShape(12.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, GoogleTvCardBorder),
-                modifier = Modifier.height(44.dp)
+                modifier = Modifier.height(44.dp).weight(1f)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.padding(horizontal = 12.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Tv,
@@ -124,8 +152,8 @@ fun TopPowerBrandBar(
                         tint = GoogleTvBlue,
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(horizontalAlignment = Alignment.Start) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
                         Text(
                             text = selectedBrand.name,
                             color = GoogleTvTextPrimary,
@@ -134,17 +162,17 @@ fun TopPowerBrandBar(
                             maxLines = 1
                         )
                         Text(
-                            text = "Tap to change brand",
+                            text = if (selectedBrand.id == "coocaa") "Tap to tune/switch" else "Tap to change",
                             color = GoogleTvTextSecondary,
                             fontSize = 9.sp
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = "Select Brand",
                         tint = GoogleTvTextSecondary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -168,9 +196,9 @@ fun TopPowerBrandBar(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (hasIrEmitter) {
-                        "IR Hardware Ready • ${selectedBrand.name} (${selectedBrand.carrierFreq / 1000} kHz)"
+                        "IR Ready • ${selectedBrand.name} (${selectedBrand.carrierFreq / 1000} kHz)"
                     } else {
-                        "IR Blaster & WoL Active • ${selectedBrand.name}"
+                        "IR & WoL Ready • ${selectedBrand.name}"
                     },
                     color = GoogleTvTextSecondary,
                     fontSize = 10.sp
@@ -179,13 +207,20 @@ fun TopPowerBrandBar(
 
             if (selectedBrand.id == "coocaa") {
                 Text(
-                    text = "NEC 0x707030CF",
+                    text = "#${activeCoocaaVariant.index} ${activeCoocaaVariant.hexCode}",
                     color = GoogleTvBlue,
                     fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { showCoocaaTesterDialog = true }
                 )
             }
         }
+    }
+
+    if (showCoocaaTesterDialog) {
+        CoocaaFrequencyTesterDialog(
+            onDismiss = { showCoocaaTesterDialog = false }
+        )
     }
 
     // TV Brand Selection Modal Dialog

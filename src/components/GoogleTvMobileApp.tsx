@@ -38,127 +38,167 @@ export interface CoocaaCodeVariant {
 
 export const COOCAA_VARIANTS: CoocaaCodeVariant[] = [
   {
-    id: 'super_blast',
-    name: 'SUPER MULTI-BLAST (All Top 6 Codes in 1 Tap)',
-    codeHex: 'SWEEP ALL',
+    id: 'iqoo_preset_40bf_12_single',
+    name: 'iQOO Neo 10 Model 1: Skyworth 0x40BF12ED (Single Frame 67p)',
+    codeHex: '0x40BF12ED (67p)',
     freq: 38000,
-    protocol: 'Auto-Sequence Multi-Code Burst (38kHz & 38.4kHz)',
-    description: 'Sequentially fires 0x40BF12ED, 0x40BF02FD, 0x47EF827D, 0x00FF12ED, 0x01FE48B7 & 0x707030CF with 120ms gap',
-    recommended: false
-  },
-  {
-    id: 'iqoo_preset_40bf_12',
-    name: 'iQOO Neo 10 Preset 1: Skyworth 0x40BF12ED',
-    codeHex: '0x40BF12ED',
-    freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
-    description: 'The #1 OEM default factory code in iQOO Neo 10 / Vivo Smart Remote for Coocaa TV (Address 0x40, Power 0x12)',
+    protocol: 'Standard NEC Single Frame (38.0 kHz)',
+    description: 'Exact 1-tap single frame sent by iQOO / Vivo Smart Remote for Coocaa (Address 0x40, Cmd 0x12)',
     recommended: true
   },
   {
-    id: 'iqoo_preset_40bf_02',
-    name: 'iQOO Neo 10 Preset 2: Skyworth 0x40BF02FD',
-    codeHex: '0x40BF02FD',
+    id: 'iqoo_preset_40bf_12_dual',
+    name: 'iQOO Neo 10 Model 1: Skyworth 0x40BF12ED (Standby Wake Burst)',
+    codeHex: '0x40BF12ED (2-Frame)',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
-    description: 'Standard alternate Skyworth / Coocaa power code in iQOO / Vivo remote database (Command 0x02)',
+    protocol: 'NEC 32-bit 2-Frame Burst (38.0 kHz)',
+    description: 'Dual frame with 40ms gap to wake TV MCU from deep eco standby mode',
     recommended: true
   },
   {
-    id: 'iqoo_neo10_47ef',
-    name: 'iQOO Neo 10 Match 3: Skyworth 0x47EF827D',
-    codeHex: '0x47EF827D',
+    id: 'iqoo_preset_40bf_02_single',
+    name: 'iQOO Neo 10 Model 2: Skyworth 0x40BF02FD (Single Frame 67p)',
+    codeHex: '0x40BF02FD (67p)',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'Standard NEC Single Frame (38.0 kHz)',
+    description: 'Alternate standard Skyworth / Coocaa code in iQOO / Vivo database (Cmd 0x02)',
+    recommended: true
+  },
+  {
+    id: 'iqoo_preset_40bf_02_dual',
+    name: 'iQOO Neo 10 Model 2: Skyworth 0x40BF02FD (Standby Burst)',
+    codeHex: '0x40BF02FD (2-Frame)',
+    freq: 38000,
+    protocol: 'NEC 32-bit 2-Frame Burst (38.0 kHz)',
+    description: 'Dual frame standby burst for Cmd 0x02'
+  },
+  {
+    id: 'iqoo_neo10_47ef_single',
+    name: 'iQOO Neo 10 Match 3: Skyworth 0x47EF827D (Single Frame 67p)',
+    codeHex: '0x47EF827D (67p)',
+    freq: 38000,
+    protocol: 'Standard NEC Single Frame (38.0 kHz)',
     description: 'Skyworth 4K & Smart Android TV variant (Customer 0x47EF, Power 0x82)',
-    recommended: false
+    recommended: true
+  },
+  {
+    id: 'iqoo_neo10_47ef_dual',
+    name: 'iQOO Neo 10 Match 3: Skyworth 0x47EF827D (Standby Burst)',
+    codeHex: '0x47EF827D (2-Frame)',
+    freq: 38000,
+    protocol: 'NEC 32-bit 2-Frame Burst (38.0 kHz)',
+    description: 'Dual frame standby burst for 0x47EF827D'
   },
   {
     id: 'iqoo_preset_40bf_48',
-    name: 'iQOO Neo 10 Preset 4: Skyworth 0x40BF48B7',
+    name: 'iQOO Neo 10 Model 4: Skyworth 0x40BF48B7',
     codeHex: '0x40BF48B7',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Skyworth chassis variant with Power keycode 0x48'
   },
   {
-    id: 'google_tv',
-    name: 'Coocaa Google TV Standard: 0x00FF12ED',
-    codeHex: '0x00FF12ED',
+    id: 'google_tv_single',
+    name: 'Coocaa Google TV Standard: 0x00FF12ED (Single Frame)',
+    codeHex: '0x00FF12ED (67p)',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Official Skyworth/Coocaa Google TV standard power code'
+  },
+  {
+    id: 'google_tv_dual',
+    name: 'Coocaa Google TV Standard: 0x00FF12ED (Standby Burst)',
+    codeHex: '0x00FF12ED (2-Frame)',
+    freq: 38000,
+    protocol: 'NEC 2-Frame Burst (38.0 kHz)',
+    description: 'Dual-frame burst for Google TV standard'
   },
   {
     id: 'skyworth_alt_00ff02',
     name: 'Skyworth Android TV Alt: 0x00FF02FD',
     codeHex: '0x00FF02FD',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Skyworth / Coocaa alternate power toggle code'
-  },
-  {
-    id: 's6g_y72',
-    name: 'Coocaa 4K Smart S6G / Y72: 0x707030CF',
-    codeHex: '0x707030CF',
-    freq: 38400,
-    protocol: 'NEC 32-bit 3-Frame (38.4 kHz)',
-    description: 'Coocaa 43/50/55 inch 4K Smart TV series'
   },
   {
     id: 'coolita',
     name: 'Coocaa Coolita / 32S3U: 0x01FE48B7',
     codeHex: '0x01FE48B7',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
-    description: 'Coocaa Coolita OS aur 32-40 inch Smart TVs'
+    protocol: 'NEC 32-bit (38.0 kHz)',
+    description: 'Coocaa Coolita OS and budget 32/40-inch Smart TVs'
   },
   {
     id: 'coolita_00fe',
     name: 'Coocaa Coolita Alt: 0x00FE48B7',
     codeHex: '0x00FE48B7',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Coocaa Coolita alternate address code'
   },
   {
-    id: 'coocaa_single_frame',
-    name: 'Coocaa Single Frame (67-Pulse Clean)',
-    codeHex: '0x40BF12ED (1-Frame)',
-    freq: 38000,
-    protocol: 'Standard NEC 67-Pulse (38.0 kHz)',
-    description: 'Single clean 67-pulse burst for TVs that ignore or reject 3-frame repeat trains'
-  },
-  {
-    id: 'iqoo_neo10_a05f',
-    name: 'iQOO Alt #2: Skyworth 0xA05F12ED',
-    codeHex: '0xA05F12ED',
-    freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
-    description: 'Alternate Coocaa Smart TV chassis in iQOO / Vivo remote database'
-  },
-  {
-    id: 'iqoo_neo10_a05f_alt',
-    name: 'iQOO Alt #3: Skyworth 0xA05F0AF5',
-    codeHex: '0xA05F0AF5',
-    freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
-    description: 'Skyworth 4K & Smart 2023-2025 chassis in iQOO database'
+    id: 's6g_y72',
+    name: 'Coocaa 4K S6G / Y72: 0x707030CF (38.4kHz)',
+    codeHex: '0x707030CF',
+    freq: 38400,
+    protocol: 'NEC 32-bit (38.4 kHz Modulation)',
+    description: 'Coocaa 43/50/55 inch 4K Smart TV models with 38.4kHz carrier'
   },
   {
     id: 'indian_36k',
-    name: 'Coocaa 36kHz Indian Model Variant',
+    name: 'Coocaa Indian 36kHz Model: 0x40BF12ED',
     codeHex: '0x40BF12ED (36kHz)',
     freq: 36000,
-    protocol: 'NEC 32-bit (36.0 kHz)',
-    description: 'Older Indian & South-Asian Coocaa TVs requiring 36kHz carrier'
+    protocol: 'NEC 32-bit (36.0 kHz Modulation)',
+    description: 'Older Indian & Southeast Asian Coocaa models using 36kHz carrier'
+  },
+  {
+    id: 'high_40k',
+    name: 'Coocaa High Frequency 40kHz: 0x40BF12ED',
+    codeHex: '0x40BF12ED (40kHz)',
+    freq: 40000,
+    protocol: 'NEC 32-bit (40.0 kHz Modulation)',
+    description: 'Coocaa variant tuned to 40.0 kHz carrier frequency'
+  },
+  {
+    id: 'discrete_on',
+    name: 'Skyworth Discrete Power ON: 0x40BF13EC',
+    codeHex: '0x40BF13EC',
+    freq: 38000,
+    protocol: 'NEC 32-bit Discrete ON (38.0 kHz)',
+    description: 'Discrete ON code (only powers ON the TV, will not toggle OFF)'
+  },
+  {
+    id: 'skyworth_00ff82',
+    name: 'Skyworth 4K Android 11/12: 0x00FF827D',
+    codeHex: '0x00FF827D',
+    freq: 38000,
+    protocol: 'NEC 32-bit (38.0 kHz)',
+    description: 'Coocaa 4K Android 11/12 TV power key'
+  },
+  {
+    id: 'msb_40bf',
+    name: 'MSB-First Bitstream: Skyworth 0x40BF12ED',
+    codeHex: '0x40BF12ED (MSB)',
+    freq: 38000,
+    protocol: 'NEC 32-bit MSB-First (38.0 kHz)',
+    description: 'Alternative MSB-first bit order for 0x40BF12ED'
+  },
+  {
+    id: 'msb_47ef',
+    name: 'MSB-First Bitstream: Skyworth 0x47EF827D',
+    codeHex: '0x47EF827D (MSB)',
+    freq: 38000,
+    protocol: 'NEC 32-bit MSB-First (38.0 kHz)',
+    description: 'Alternative MSB-first bit order for 0x47EF827D'
   },
   {
     id: 'universal_power',
-    name: 'Coocaa Universal Smart Power',
+    name: 'Coocaa Universal Smart: 0x04FB01FE',
     codeHex: '0x04FB01FE',
     freq: 38000,
-    protocol: 'NEC 32-bit 3-Frame (38.0 kHz)',
+    protocol: 'NEC 32-bit (38.0 kHz)',
     description: 'Coocaa Universal Smart TV power toggle code'
   }
 ];

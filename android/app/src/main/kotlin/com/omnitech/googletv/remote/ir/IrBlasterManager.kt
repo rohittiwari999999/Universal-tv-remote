@@ -51,26 +51,12 @@ class IrBlasterManager(private val context: Context) {
          */
         @JvmField
         val COOCAA_POWER_PATTERN: IntArray = intArrayOf(
-            // Frame 1: 9ms mark, 4.5ms space, 32 bits (0x40, 0xBF, 0x12, 0xED), 560us stop, 40ms space
+            // Single Clean Frame (67 pulses): 9ms mark, 4.5ms space, 32 bits (0x40, 0xBF, 0x12, 0xED), 560us stop
             9000, 4500,
             560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560, // 0x40
             560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690, // 0xBF
             560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560, // 0x12
             560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690, // 0xED
-            560, 40000,
-            // Frame 2:
-            9000, 4500,
-            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
-            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
-            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
-            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
-            560, 40000,
-            // Frame 3 (Ends cleanly with 560us stop pulse mark):
-            9000, 4500,
-            560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 560, 1690, 560, 560,
-            560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 1690, 560, 560, 560, 1690,
-            560, 560, 560, 1690, 560, 560, 560, 560, 560, 1690, 560, 560, 560, 560, 560, 560,
-            560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690, 560, 1690, 560, 1690,
             560
         )
 
@@ -326,5 +312,12 @@ class IrBlasterManager(private val context: Context) {
         } catch (e: Exception) {
             Log.d(TAG, "WoL packet exception (ignored): ${e.message}")
         }
+    }
+
+    /**
+     * Sends Wake-on-LAN without triggering hardware IR blaster (avoids hardware collision).
+     */
+    suspend fun sendWakeOnLanOnly(targetIp: String?) = withContext(Dispatchers.IO) {
+        sendWakeOnLan(targetIp)
     }
 }
